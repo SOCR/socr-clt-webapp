@@ -1,5 +1,7 @@
 # SOCR Central Limit Theorem (CLT) HTML5 Webapp
 
+![](https://github.com/SOCR/socr-clt-webapp/blob/6199b4c57800fe83fd168ebbd38cbf82503f2185/src/SOCR_CLT_webapp_HTML5.png)
+
 ## Project info
 
 This [SOCR webapp](https://socr.umich.edu/HTML5/) shows a very general demonstration of the Central Limit Theorem (CLT). There is a [supplementary SOCR activity (learning module)](https://wiki.socr.umich.edu/index.php/SOCR_EduMaterials_Activities_GeneralCentralLimitTheorem) is based on an earlier version of the SOCR Sampling Distribution CLT Experiment. This experiment builds upon a RVLS CLT applet by extending the applet functionality and providing the capability of sampling from any SOCR Distribution. 
