@@ -41,10 +41,12 @@ const CLTSampler = () => {
   const [isAnimating, setIsAnimating] = useState(false);
   const [animationSpeed, setAnimationSpeed] = useState(10);
   const [showStepAnimation, setShowStepAnimation] = useState(true);
+  const [animationPoint, setAnimationPoint] = useState<{ x: number, y: number, value: number } | null>(null);
   
   // Data state
   const [populationData, setPopulationData] = useState<number[]>([]);
   const [currentSample, setCurrentSample] = useState<number[]>([]);
+  const [currentDrawIndex, setCurrentDrawIndex] = useState(-1);
   const [samplingData1, setSamplingData1] = useState<number[]>([]);
   const [samplingData2, setSamplingData2] = useState<number[]>([]);
   
@@ -55,6 +57,7 @@ const CLTSampler = () => {
   const [sampling2Stats, setSampling2Stats] = useState({ size: 0, mean: 0, median: 0, sd: 0, skewness: 0, kurtosis: 0 });
 
   const animationRef = useRef<number | null>(null);
+  const sampleStepAnimationRef = useRef<number | null>(null);
 
   // Initialize the distribution data on first load
   useEffect(() => {
@@ -72,7 +75,7 @@ const CLTSampler = () => {
     drawCurrentSampleHistogram();
     drawSamplingDistribution1();
     drawSamplingDistribution2();
-  }, [populationData, currentSample, samplingData1, samplingData2, fitNormal1, fitNormal2]);
+  }, [populationData, currentSample, samplingData1, samplingData2, fitNormal1, fitNormal2, animationPoint]);
 
   // Generate the population data based on the selected distribution
   const generatePopulationData = () => {
@@ -145,28 +148,105 @@ const CLTSampler = () => {
     setSamplingData1([]);
     setSamplingData2([]);
     setCurrentSample([]);
+    setCurrentDrawIndex(-1);
+    setAnimationPoint(null);
     setSampleStats({ size: 0, mean: 0, median: 0, sd: 0, skewness: 0, kurtosis: 0 });
     setSampling1Stats({ size: 0, mean: 0, median: 0, sd: 0, skewness: 0, kurtosis: 0 });
     setSampling2Stats({ size: 0, mean: 0, median: 0, sd: 0, skewness: 0, kurtosis: 0 });
   };
 
-  // Take a single sample
+  // Take a single sample with animation
   const takeSample = () => {
-    const newSample = [];
-    for (let i = 0; i < sampleSize; i++) {
-      const randomIndex = Math.floor(Math.random() * populationData.length);
-      newSample.push(populationData[randomIndex]);
+    if (sampleStepAnimationRef.current !== null) {
+      cancelAnimationFrame(sampleStepAnimationRef.current);
+      sampleStepAnimationRef.current = null;
     }
     
+    // Create a new empty sample array
+    const newSample: number[] = [];
     setCurrentSample(newSample);
-    const sampleStats = calculateStatistics(newSample);
-    setSampleStats(sampleStats);
+    setCurrentDrawIndex(-1);
     
-    // Update sampling distributions
-    updateSamplingDistributions(newSample, sampleStats);
+    // If we're not showing the step animation, just sample all at once
+    if (!showStepAnimation) {
+      const completeSample = [];
+      for (let i = 0; i < sampleSize; i++) {
+        const randomIndex = Math.floor(Math.random() * populationData.length);
+        completeSample.push(populationData[randomIndex]);
+      }
+      
+      setCurrentSample(completeSample);
+      const sampleStats = calculateStatistics(completeSample);
+      setSampleStats(sampleStats);
+      
+      // Update sampling distributions
+      updateSamplingDistributions(completeSample, sampleStats);
+      
+      setNumberOfSamples(prev => prev + 1);
+    } else {
+      // Start the step-by-step sampling animation
+      let currentIndex = 0;
+      
+      const animateStep = () => {
+        if (currentIndex < sampleSize) {
+          const randomIndex = Math.floor(Math.random() * populationData.length);
+          const value = populationData[randomIndex];
+          
+          // Update the current sample by adding the new value
+          const updatedSample = [...newSample, value];
+          newSample.push(value);
+          setCurrentSample([...newSample]);
+          setCurrentDrawIndex(currentIndex);
+          
+          // Get coordinates for animation
+          if (canvasRefs.population.current) {
+            const canvas = canvasRefs.population.current;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              const min = Math.min(...populationData);
+              const max = Math.max(...populationData);
+              const margin = (max - min) * 0.1;
+              const adjustedMin = min - margin;
+              const adjustedMax = max + margin;
+              
+              const x = 30 + ((value - adjustedMin) / (adjustedMax - adjustedMin)) * (canvas.width - 40);
+              const y = canvas.height / 2;
+              
+              setAnimationPoint({ x, y, value });
+              
+              // Animate the point falling from the population to the sample
+              setTimeout(() => {
+                setAnimationPoint(null);
+              }, 500);
+            }
+          }
+          
+          currentIndex++;
+          
+          // Schedule the next animation step
+          sampleStepAnimationRef.current = requestAnimationFrame(() => {
+            setTimeout(animateStep, 1000 / animationSpeed);
+          });
+        } else {
+          // Animation complete, update statistics
+          setCurrentDrawIndex(-1);
+          const sampleStats = calculateStatistics(newSample);
+          setSampleStats(sampleStats);
+          
+          // Update sampling distributions
+          updateSamplingDistributions(newSample, sampleStats);
+          
+          setNumberOfSamples(prev => prev + 1);
+          
+          sampleStepAnimationRef.current = null;
+        }
+      };
+      
+      // Start the animation
+      animateStep();
+    }
     
-    setNumberOfSamples(prev => prev + 1);
-    
+    // Check if we've reached the maximum number of samples
     if (numberOfSamples >= maxSamples) {
       stopAnimation();
       toast({
@@ -217,7 +297,11 @@ const CLTSampler = () => {
     setIsAnimating(true);
     
     const animate = () => {
-      takeSample();
+      // Don't start the next sample until the current one is complete
+      if (sampleStepAnimationRef.current === null) {
+        takeSample();
+      }
+      
       animationRef.current = requestAnimationFrame(() => {
         setTimeout(animate, 1000 / animationSpeed);
       });
@@ -232,6 +316,12 @@ const CLTSampler = () => {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
     }
+    
+    if (sampleStepAnimationRef.current !== null) {
+      cancelAnimationFrame(sampleStepAnimationRef.current);
+      sampleStepAnimationRef.current = null;
+    }
+    
     setIsAnimating(false);
   };
 
@@ -254,17 +344,84 @@ const CLTSampler = () => {
     if (!ctx) return;
     
     drawHistogram(ctx, canvas, populationData, 'rgb(59, 130, 246)', false);
+    
+    // Draw animation point if it exists
+    if (animationPoint) {
+      ctx.fillStyle = 'rgb(255, 0, 0)';
+      ctx.beginPath();
+      ctx.arc(animationPoint.x, animationPoint.y, 6, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      // Draw the value text
+      ctx.fillStyle = 'black';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(animationPoint.value.toFixed(2), animationPoint.x, animationPoint.y - 10);
+    }
+    
+    // Highlight the current draw in the population
+    if (currentDrawIndex >= 0 && currentDrawIndex < sampleSize && currentSample.length > 0) {
+      const value = currentSample[currentDrawIndex];
+      
+      // Calculate the x position of the value
+      const min = Math.min(...populationData);
+      const max = Math.max(...populationData);
+      const margin = (max - min) * 0.1;
+      const adjustedMin = min - margin;
+      const adjustedMax = max + margin;
+      
+      const x = 30 + ((value - adjustedMin) / (adjustedMax - adjustedMin)) * (canvas.width - 40);
+      
+      // Draw a vertical line at the current value
+      ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, 10);
+      ctx.lineTo(x, canvas.height - 30);
+      ctx.stroke();
+    }
   };
 
   // Draw the current sample histogram
   const drawCurrentSampleHistogram = () => {
-    if (!canvasRefs.currentSample.current || currentSample.length === 0) return;
+    if (!canvasRefs.currentSample.current) return;
     
     const canvas = canvasRefs.currentSample.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
+    if (currentSample.length === 0) {
+      drawEmptyFrame(ctx, canvas.width, canvas.height);
+      return;
+    }
+    
     drawHistogram(ctx, canvas, currentSample, 'rgb(239, 68, 68)', false);
+    
+    // Highlight the current draw in the sample
+    if (currentDrawIndex >= 0 && currentDrawIndex < currentSample.length) {
+      const value = currentSample[currentDrawIndex];
+      
+      // Calculate the x position of the value
+      const min = Math.min(...currentSample);
+      const max = Math.max(...currentSample);
+      const margin = (max - min) * 0.1 || 0.5; // Add a small margin if min equals max
+      const adjustedMin = min - margin;
+      const adjustedMax = max + margin;
+      
+      const x = 30 + ((value - adjustedMin) / (adjustedMax - adjustedMin)) * (canvas.width - 40);
+      
+      // Draw a highlight at the current value
+      ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+      ctx.beginPath();
+      ctx.arc(x, canvas.height - 30 - 20, 10, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      // Draw the value text
+      ctx.fillStyle = 'red';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Draw ${currentDrawIndex + 1}: ${value.toFixed(2)}`, x, canvas.height - 10);
+    }
   };
 
   // Draw the first sampling distribution histogram
@@ -308,7 +465,7 @@ const CLTSampler = () => {
     const max = Math.max(...data);
     
     // Add a 10% margin on each side
-    const margin = (max - min) * 0.1;
+    const margin = (max - min) * 0.1 || 0.5; // Add a small margin if min equals max
     const adjustedMin = min - margin;
     const adjustedMax = max + margin;
     
@@ -709,205 +866,209 @@ const CLTSampler = () => {
             </Card>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex justify-between">
-                    <span>Population Distribution</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <canvas 
-                    ref={canvasRefs.population} 
-                    width={500} 
-                    height={200} 
-                    className="w-full h-auto bg-muted/20 rounded-md"
-                  ></canvas>
-                </CardContent>
-                <CardFooter>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Size</TableHead>
-                        <TableHead>Mean</TableHead>
-                        <TableHead>Median</TableHead>
-                        <TableHead>SD</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>{populationStats.size}</TableCell>
-                        <TableCell>{populationStats.mean}</TableCell>
-                        <TableCell>{populationStats.median}</TableCell>
-                        <TableCell>{populationStats.sd}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </CardFooter>
-              </Card>
+              {/* Left side: Population and Sample */}
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg flex justify-between">
+                      <span>Population Distribution</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <canvas 
+                      ref={canvasRefs.population} 
+                      width={500} 
+                      height={200} 
+                      className="w-full h-auto bg-muted/20 rounded-md"
+                    ></canvas>
+                  </CardContent>
+                  <CardFooter>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Size</TableHead>
+                          <TableHead>Mean</TableHead>
+                          <TableHead>Median</TableHead>
+                          <TableHead>SD</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>{populationStats.size}</TableCell>
+                          <TableCell>{populationStats.mean}</TableCell>
+                          <TableCell>{populationStats.median}</TableCell>
+                          <TableCell>{populationStats.sd}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </CardFooter>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg">Current Sample (n={sampleSize})</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <canvas 
+                      ref={canvasRefs.currentSample} 
+                      width={500} 
+                      height={200} 
+                      className="w-full h-auto bg-muted/20 rounded-md"
+                    ></canvas>
+                  </CardContent>
+                  <CardFooter>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Size</TableHead>
+                          <TableHead>Mean</TableHead>
+                          <TableHead>Median</TableHead>
+                          <TableHead>SD</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>{sampleStats.size}</TableCell>
+                          <TableCell>{sampleStats.mean}</TableCell>
+                          <TableCell>{sampleStats.median}</TableCell>
+                          <TableCell>{sampleStats.sd}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </CardFooter>
+                </Card>
+              </div>
               
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Current Sample (n={sampleSize})</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <canvas 
-                    ref={canvasRefs.currentSample} 
-                    width={500} 
-                    height={200} 
-                    className="w-full h-auto bg-muted/20 rounded-md"
-                  ></canvas>
-                </CardContent>
-                <CardFooter>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Size</TableHead>
-                        <TableHead>Mean</TableHead>
-                        <TableHead>Median</TableHead>
-                        <TableHead>SD</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>{sampleStats.size}</TableCell>
-                        <TableCell>{sampleStats.mean}</TableCell>
-                        <TableCell>{sampleStats.median}</TableCell>
-                        <TableCell>{sampleStats.sd}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </CardFooter>
-              </Card>
-              
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Select 
-                        value={statistic1} 
-                        onValueChange={setStatistic1}
-                      >
-                        <SelectTrigger className="w-36">
-                          <SelectValue placeholder="Statistic 1" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="mean">Mean</SelectItem>
-                          <SelectItem value="median">Median</SelectItem>
-                          <SelectItem value="variance">Variance</SelectItem>
-                          <SelectItem value="sd">Std. Deviation</SelectItem>
-                          <SelectItem value="min">Minimum</SelectItem>
-                          <SelectItem value="max">Maximum</SelectItem>
-                          <SelectItem value="range">Range</SelectItem>
-                          <SelectItem value="skewness">Skewness</SelectItem>
-                          <SelectItem value="kurtosis">Kurtosis</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <div className="flex items-center space-x-1">
-                        <Switch 
-                          id="fit-normal-1" 
-                          checked={fitNormal1}
-                          onCheckedChange={setFitNormal1}
-                          size="sm"
-                        />
-                        <Label htmlFor="fit-normal-1" className="text-xs">Fit Normal</Label>
+              {/* Right side: Sampling Distributions */}
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg flex justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Select 
+                          value={statistic1} 
+                          onValueChange={setStatistic1}
+                        >
+                          <SelectTrigger className="w-36">
+                            <SelectValue placeholder="Statistic 1" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="mean">Mean</SelectItem>
+                            <SelectItem value="median">Median</SelectItem>
+                            <SelectItem value="variance">Variance</SelectItem>
+                            <SelectItem value="sd">Std. Deviation</SelectItem>
+                            <SelectItem value="min">Minimum</SelectItem>
+                            <SelectItem value="max">Maximum</SelectItem>
+                            <SelectItem value="range">Range</SelectItem>
+                            <SelectItem value="skewness">Skewness</SelectItem>
+                            <SelectItem value="kurtosis">Kurtosis</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center space-x-1">
+                          <Switch 
+                            id="fit-normal-1" 
+                            checked={fitNormal1}
+                            onCheckedChange={setFitNormal1}
+                          />
+                          <Label htmlFor="fit-normal-1" className="text-xs">Fit Normal</Label>
+                        </div>
                       </div>
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <canvas 
-                    ref={canvasRefs.samplingDistribution1} 
-                    width={500} 
-                    height={200} 
-                    className="w-full h-auto bg-muted/20 rounded-md"
-                  ></canvas>
-                </CardContent>
-                <CardFooter>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Samples</TableHead>
-                        <TableHead>Mean</TableHead>
-                        <TableHead>Median</TableHead>
-                        <TableHead>SD</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>{sampling1Stats.size}</TableCell>
-                        <TableCell>{sampling1Stats.mean}</TableCell>
-                        <TableCell>{sampling1Stats.median}</TableCell>
-                        <TableCell>{sampling1Stats.sd}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </CardFooter>
-              </Card>
-              
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Select 
-                        value={statistic2} 
-                        onValueChange={setStatistic2}
-                      >
-                        <SelectTrigger className="w-36">
-                          <SelectValue placeholder="Statistic 2" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="mean">Mean</SelectItem>
-                          <SelectItem value="median">Median</SelectItem>
-                          <SelectItem value="variance">Variance</SelectItem>
-                          <SelectItem value="sd">Std. Deviation</SelectItem>
-                          <SelectItem value="min">Minimum</SelectItem>
-                          <SelectItem value="max">Maximum</SelectItem>
-                          <SelectItem value="range">Range</SelectItem>
-                          <SelectItem value="skewness">Skewness</SelectItem>
-                          <SelectItem value="kurtosis">Kurtosis</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <div className="flex items-center space-x-1">
-                        <Switch 
-                          id="fit-normal-2" 
-                          checked={fitNormal2}
-                          onCheckedChange={setFitNormal2}
-                          size="sm"
-                        />
-                        <Label htmlFor="fit-normal-2" className="text-xs">Fit Normal</Label>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <canvas 
+                      ref={canvasRefs.samplingDistribution1} 
+                      width={500} 
+                      height={200} 
+                      className="w-full h-auto bg-muted/20 rounded-md"
+                    ></canvas>
+                  </CardContent>
+                  <CardFooter>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Samples</TableHead>
+                          <TableHead>Mean</TableHead>
+                          <TableHead>Median</TableHead>
+                          <TableHead>SD</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>{sampling1Stats.size}</TableCell>
+                          <TableCell>{sampling1Stats.mean}</TableCell>
+                          <TableCell>{sampling1Stats.median}</TableCell>
+                          <TableCell>{sampling1Stats.sd}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </CardFooter>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg flex justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Select 
+                          value={statistic2} 
+                          onValueChange={setStatistic2}
+                        >
+                          <SelectTrigger className="w-36">
+                            <SelectValue placeholder="Statistic 2" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="mean">Mean</SelectItem>
+                            <SelectItem value="median">Median</SelectItem>
+                            <SelectItem value="variance">Variance</SelectItem>
+                            <SelectItem value="sd">Std. Deviation</SelectItem>
+                            <SelectItem value="min">Minimum</SelectItem>
+                            <SelectItem value="max">Maximum</SelectItem>
+                            <SelectItem value="range">Range</SelectItem>
+                            <SelectItem value="skewness">Skewness</SelectItem>
+                            <SelectItem value="kurtosis">Kurtosis</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center space-x-1">
+                          <Switch 
+                            id="fit-normal-2" 
+                            checked={fitNormal2}
+                            onCheckedChange={setFitNormal2}
+                          />
+                          <Label htmlFor="fit-normal-2" className="text-xs">Fit Normal</Label>
+                        </div>
                       </div>
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <canvas 
-                    ref={canvasRefs.samplingDistribution2} 
-                    width={500} 
-                    height={200} 
-                    className="w-full h-auto bg-muted/20 rounded-md"
-                  ></canvas>
-                </CardContent>
-                <CardFooter>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Samples</TableHead>
-                        <TableHead>Mean</TableHead>
-                        <TableHead>Median</TableHead>
-                        <TableHead>SD</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>{sampling2Stats.size}</TableCell>
-                        <TableCell>{sampling2Stats.mean}</TableCell>
-                        <TableCell>{sampling2Stats.median}</TableCell>
-                        <TableCell>{sampling2Stats.sd}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </CardFooter>
-              </Card>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <canvas 
+                      ref={canvasRefs.samplingDistribution2} 
+                      width={500} 
+                      height={200} 
+                      className="w-full h-auto bg-muted/20 rounded-md"
+                    ></canvas>
+                  </CardContent>
+                  <CardFooter>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Samples</TableHead>
+                          <TableHead>Mean</TableHead>
+                          <TableHead>Median</TableHead>
+                          <TableHead>SD</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>{sampling2Stats.size}</TableCell>
+                          <TableCell>{sampling2Stats.mean}</TableCell>
+                          <TableCell>{sampling2Stats.median}</TableCell>
+                          <TableCell>{sampling2Stats.sd}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </CardFooter>
+                </Card>
+              </div>
             </div>
           </TabsContent>
           
