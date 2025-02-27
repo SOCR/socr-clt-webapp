@@ -156,7 +156,7 @@ const CLTSampler = () => {
   };
 
   // Take a single sample with animation
-  const takeSample = () => {
+  const takeSample = (enableAnimation = true) => {
     if (sampleStepAnimationRef.current !== null) {
       cancelAnimationFrame(sampleStepAnimationRef.current);
       sampleStepAnimationRef.current = null;
@@ -167,8 +167,8 @@ const CLTSampler = () => {
     setCurrentSample(newSample);
     setCurrentDrawIndex(-1);
     
-    // If we're not showing the step animation, just sample all at once
-    if (!showStepAnimation) {
+    // If we're not showing the step animation or if this is part of continuous sampling, just sample all at once
+    if (!showStepAnimation || !enableAnimation) {
       const completeSample = [];
       for (let i = 0; i < sampleSize; i++) {
         const randomIndex = Math.floor(Math.random() * populationData.length);
@@ -299,7 +299,8 @@ const CLTSampler = () => {
     const animate = () => {
       // Don't start the next sample until the current one is complete
       if (sampleStepAnimationRef.current === null) {
-        takeSample();
+        // For continuous sampling, disable the step-by-step animation
+        takeSample(false);
       }
       
       animationRef.current = requestAnimationFrame(() => {
@@ -856,7 +857,7 @@ const CLTSampler = () => {
                   </Button>
                   <Button 
                     variant="secondary"
-                    onClick={takeSample}
+                    onClick={() => takeSample(true)}
                     disabled={isAnimating}
                   >
                     Take Single Sample
