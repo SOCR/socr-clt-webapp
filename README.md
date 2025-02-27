@@ -1,18 +1,18 @@
-# Welcome to your Lovable project
+# SOCR Central Limit Theorem (CLT) HTML5 Webapp
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/ce3b1264-08b8-43b0-990d-5f763b7177f1
+This [SOCR webapp](https://socr.umich.edu/HTML5/) shows a very general demonstration of the Central Limit Theorem (CLT). There is a [supplementary SOCR activity (learning module)](https://wiki.socr.umich.edu/index.php/SOCR_EduMaterials_Activities_GeneralCentralLimitTheorem) is based on an earlier version of the SOCR Sampling Distribution CLT Experiment. This experiment builds upon a RVLS CLT applet by extending the applet functionality and providing the capability of sampling from any SOCR Distribution. 
 
 ## How can I edit this code?
 
-There are several ways of editing your application.
+There are several ways of editing this web-application.
 
 **Use Lovable**
 
 Simply visit the [Lovable Project](https://lovable.dev/projects/ce3b1264-08b8-43b0-990d-5f763b7177f1) and start prompting.
 
-Changes made via Lovable will be committed automatically to this repo.
+Changes made via Lovable will be committed automatically to this [GitHub repo](https://github.com/SOCR/socr-clt-webapp/).
 
 **Use your preferred IDE**
 
@@ -72,4 +72,5 @@ We don't support custom domains (yet). If you want to deploy your project under 
  - [SOCR CLT Paper](https://doi.org/10.1080/10691898.2008.11889560)
  - [SOCR CLT learning activity](https://wiki.socr.umich.edu/index.php/SOCR_EduMaterials_Activities_GeneralCentralLimitTheorem)
  - [Earlier SOCR CLT Java applet](http://socr.ucla.edu/htmls/SOCR_Experiments.html) and [Java source code](https://github.com/SOCR/SOCR-Java/blob/master/src/edu/ucla/stat/SOCR/experiments/SamplingDistributionExperiment.java)
+ - [Lovable AI Engineer Project](https://lovable.dev/projects/ce3b1264-08b8-43b0-990d-5f763b7177f1)
  - [SOCR CLT Webapp deloyment](https://socr-clt-webapp.lovable.app/)
