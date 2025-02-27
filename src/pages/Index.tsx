@@ -77,6 +77,13 @@ const CLTSampler = () => {
     drawSamplingDistribution2();
   }, [populationData, currentSample, samplingData1, samplingData2, fitNormal1, fitNormal2, animationPoint]);
 
+  // Clean up animation frames when component unmounts
+  useEffect(() => {
+    return () => {
+      stopAnimation();
+    };
+  }, []);
+
   // Generate the population data based on the selected distribution
   const generatePopulationData = () => {
     const dist = distributions[selectedDistribution];
@@ -297,6 +304,9 @@ const CLTSampler = () => {
     setIsAnimating(true);
     
     const animate = () => {
+      // Only continue if we're still in animation mode
+      if (!isAnimating) return;
+      
       // Don't start the next sample until the current one is complete
       if (sampleStepAnimationRef.current === null) {
         // For continuous sampling, disable the step-by-step animation
@@ -313,6 +323,10 @@ const CLTSampler = () => {
 
   // Stop animation
   const stopAnimation = () => {
+    // Set isAnimating to false first to prevent new animations from being scheduled
+    setIsAnimating(false);
+    
+    // Cancel any pending animation frames
     if (animationRef.current !== null) {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
@@ -322,8 +336,6 @@ const CLTSampler = () => {
       cancelAnimationFrame(sampleStepAnimationRef.current);
       sampleStepAnimationRef.current = null;
     }
-    
-    setIsAnimating(false);
   };
 
   // Clear all samples
