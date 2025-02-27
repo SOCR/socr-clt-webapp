@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -37,7 +36,7 @@ const CLTSampler = () => {
   const [fitNormal1, setFitNormal1] = useState(true);
   const [fitNormal2, setFitNormal2] = useState(true);
   
-  // Animation state
+  const isAnimatingRef = useRef(false); // Add this ref to track animation state
   const [isAnimating, setIsAnimating] = useState(false);
   const [animationSpeed, setAnimationSpeed] = useState(10);
   const [showStepAnimation, setShowStepAnimation] = useState(true);
@@ -302,10 +301,11 @@ const CLTSampler = () => {
     if (isAnimating) return;
     
     setIsAnimating(true);
+    isAnimatingRef.current = true;
     
     const animate = () => {
       // Only continue if we're still in animation mode
-      if (!isAnimating) return;
+      if (!isAnimatingRef.current) return;
       
       // Don't start the next sample until the current one is complete
       if (sampleStepAnimationRef.current === null) {
@@ -323,8 +323,9 @@ const CLTSampler = () => {
 
   // Stop animation
   const stopAnimation = () => {
-    // Set isAnimating to false first to prevent new animations from being scheduled
+    // Set animation flags to false first to prevent new animations from being scheduled
     setIsAnimating(false);
+    isAnimatingRef.current = false;
     
     // Cancel any pending animation frames
     if (animationRef.current !== null) {
