@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -23,7 +24,19 @@ const CLTSampler = () => {
 
   // Distribution and parameters state
   const [selectedDistribution, setSelectedDistribution] = useState("normal");
-  const [distributionParams, setDistributionParams] = useState({ mean: 0, sd: 1, p: 0.5, lambda: 1, a: 0, b: 1 });
+  const [distributionParams, setDistributionParams] = useState({ 
+    mean: 0, 
+    sd: 1, 
+    p: 0.5, 
+    lambda: 1, 
+    a: 0, 
+    b: 1, 
+    location: 0,
+    scale: 1,
+    df: 5,
+    c: 0.5,
+    n: 10
+  });
   
   // Sample size and number of samples state
   const [sampleSize, setSampleSize] = useState(5);
@@ -36,7 +49,8 @@ const CLTSampler = () => {
   const [fitNormal1, setFitNormal1] = useState(true);
   const [fitNormal2, setFitNormal2] = useState(true);
   
-  const isAnimatingRef = useRef(false); // Add this ref to track animation state
+  // Animation state
+  const isAnimatingRef = useRef(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [animationSpeed, setAnimationSpeed] = useState(10);
   const [showStepAnimation, setShowStepAnimation] = useState(true);
@@ -311,11 +325,21 @@ const CLTSampler = () => {
       if (sampleStepAnimationRef.current === null) {
         // For continuous sampling, disable the step-by-step animation
         takeSample(false);
+        
+        if (numberOfSamples >= maxSamples) {
+          stopAnimation();
+          return;
+        }
+        
+        animationRef.current = requestAnimationFrame(() => {
+          setTimeout(animate, 1000 / animationSpeed);
+        });
+      } else {
+        // Wait a bit and check again
+        animationRef.current = requestAnimationFrame(() => {
+          setTimeout(animate, 100);
+        });
       }
-      
-      animationRef.current = requestAnimationFrame(() => {
-        setTimeout(animate, 1000 / animationSpeed);
-      });
     };
     
     animate();
@@ -486,8 +510,8 @@ const CLTSampler = () => {
     // Get statistics for the data
     const stats = calculateStatistics(data);
     
-    // Create bins
-    const binCount = Math.min(Math.ceil(Math.sqrt(data.length)), 30);
+    // Create bins - Increased number of bins for better resolution
+    const binCount = Math.min(Math.ceil(Math.sqrt(data.length)) * 2, 50);
     const binWidth = (adjustedMax - adjustedMin) / binCount;
     const bins = new Array(binCount).fill(0);
     
@@ -499,8 +523,11 @@ const CLTSampler = () => {
       }
     }
     
-    // Find the maximum bin count for scaling
-    const maxBinCount = Math.max(...bins);
+    // Calculate proportions instead of counts
+    const binProportions = bins.map(count => count / data.length / binWidth);
+    
+    // Find the maximum bin proportion for scaling
+    const maxBinProportion = Math.max(...binProportions);
     
     // Draw the coordinate frame
     ctx.strokeStyle = '#666';
@@ -516,7 +543,7 @@ const CLTSampler = () => {
     
     ctx.fillStyle = color;
     for (let i = 0; i < binCount; i++) {
-      const barHeight = (bins[i] / maxBinCount) * (height - 40);
+      const barHeight = (binProportions[i] / maxBinProportion) * (height - 40);
       ctx.fillRect(
         30 + i * barWidth,
         height - 30 - barHeight,
@@ -527,11 +554,11 @@ const CLTSampler = () => {
     
     // Draw a normal curve if requested
     if (fitNormal && data.length > 1) {
-      drawNormalCurve(ctx, width, height, stats.mean, stats.sd, adjustedMin, adjustedMax, maxBinCount, data.length);
+      drawNormalCurve(ctx, width, height, stats.mean, stats.sd, adjustedMin, adjustedMax, maxBinProportion);
     }
     
     // Draw the axes labels
-    drawAxesLabels(ctx, width, height, adjustedMin, adjustedMax, maxBinCount);
+    drawAxesLabels(ctx, width, height, adjustedMin, adjustedMax, maxBinProportion);
     
     // Draw the statistics
     drawStatistics(ctx, width, height, stats);
@@ -562,8 +589,7 @@ const CLTSampler = () => {
     sd: number, 
     min: number, 
     max: number, 
-    maxBinCount: number,
-    dataCount: number
+    maxProportion: number
   ) => {
     if (sd === 0) return;
     
@@ -579,8 +605,8 @@ const CLTSampler = () => {
       const normalValue = (1 / (sd * Math.sqrt(2 * Math.PI))) * 
                           Math.exp(-0.5 * Math.pow((x - mean) / sd, 2));
       
-      // Scale to fit canvas
-      const scaledValue = normalValue * (height - 40) * dataCount * step / maxBinCount;
+      // Scale to fit canvas - already using proportion scale
+      const scaledValue = normalValue / maxProportion * (height - 40);
       
       const canvasX = 30 + ((x - min) / (max - min)) * (width - 40);
       const canvasY = height - 30 - scaledValue;
@@ -603,7 +629,7 @@ const CLTSampler = () => {
     height: number, 
     min: number, 
     max: number, 
-    maxBinCount: number
+    maxProportion: number
   ) => {
     ctx.fillStyle = '#666';
     ctx.font = '10px Arial';
@@ -614,11 +640,11 @@ const CLTSampler = () => {
     ctx.fillText(((min + max) / 2).toFixed(1), width / 2, height - 15);
     ctx.fillText(max.toFixed(1), width - 10, height - 15);
     
-    // Y-axis labels
+    // Y-axis labels (now using proportions)
     ctx.textAlign = 'right';
     ctx.fillText('0', 25, height - 30);
-    ctx.fillText(Math.round(maxBinCount / 2).toString(), 25, height - 30 - (height - 40) / 2);
-    ctx.fillText(maxBinCount.toString(), 25, 15);
+    ctx.fillText((maxProportion / 2).toFixed(3), 25, height - 30 - (height - 40) / 2);
+    ctx.fillText(maxProportion.toFixed(3), 25, 15);
   };
 
   // Draw statistics on a histogram
@@ -634,6 +660,334 @@ const CLTSampler = () => {
     
     const statText = `n=${stats.size}, μ=${stats.mean}, σ=${stats.sd}`;
     ctx.fillText(statText, 35, 20);
+  };
+
+  // Render distribution parameter controls based on the selected distribution
+  const renderDistributionParams = () => {
+    switch (selectedDistribution) {
+      case "normal":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="mean">Mean (μ)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="mean"
+                  min={-10} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.mean]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, mean: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.mean.toFixed(1)}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="sd">Standard Deviation (σ)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="sd"
+                  min={0.1} 
+                  max={5} 
+                  step={0.1} 
+                  value={[distributionParams.sd]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, sd: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.sd.toFixed(1)}</span>
+              </div>
+            </div>
+          </>
+        );
+        
+      case "uniform":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="a">Lower Bound (a)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="a"
+                  min={-10} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.a]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, a: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.a.toFixed(1)}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="b">Upper Bound (b)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="b"
+                  min={-10} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.b]}
+                  onValueChange={(value) => {
+                    if (value[0] > distributionParams.a) {
+                      setDistributionParams({...distributionParams, b: value[0]})
+                    } else {
+                      toast({
+                        variant: "destructive",
+                        title: "Invalid input",
+                        description: "Upper bound must be greater than lower bound",
+                      });
+                    }
+                  }}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.b.toFixed(1)}</span>
+              </div>
+            </div>
+          </>
+        );
+        
+      case "exponential":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor="lambda">Rate Parameter (λ)</Label>
+            <div className="flex items-center space-x-2">
+              <Slider 
+                id="lambda"
+                min={0.1} 
+                max={5} 
+                step={0.1} 
+                value={[distributionParams.lambda]}
+                onValueChange={(value) => setDistributionParams({...distributionParams, lambda: value[0]})}
+                className="flex-1"
+              />
+              <span className="w-12 text-center">{distributionParams.lambda.toFixed(1)}</span>
+            </div>
+          </div>
+        );
+        
+      case "bernoulli":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor="p">Success Probability (p)</Label>
+            <div className="flex items-center space-x-2">
+              <Slider 
+                id="p"
+                min={0} 
+                max={1} 
+                step={0.01} 
+                value={[distributionParams.p]}
+                onValueChange={(value) => setDistributionParams({...distributionParams, p: value[0]})}
+                className="flex-1"
+              />
+              <span className="w-12 text-center">{distributionParams.p.toFixed(2)}</span>
+            </div>
+          </div>
+        );
+      
+      case "cauchy":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="location">Location Parameter</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="location"
+                  min={-10} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.location]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, location: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.location.toFixed(1)}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="scale">Scale Parameter</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="scale"
+                  min={0.1} 
+                  max={5} 
+                  step={0.1} 
+                  value={[distributionParams.scale]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, scale: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.scale.toFixed(1)}</span>
+              </div>
+            </div>
+          </>
+        );
+      
+      case "triangular":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="a">Lower Bound (a)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="a"
+                  min={-10} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.a]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, a: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.a.toFixed(1)}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="b">Upper Bound (b)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="b"
+                  min={-10} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.b]}
+                  onValueChange={(value) => {
+                    if (value[0] > distributionParams.a) {
+                      setDistributionParams({...distributionParams, b: value[0]})
+                    } else {
+                      toast({
+                        variant: "destructive",
+                        title: "Invalid input",
+                        description: "Upper bound must be greater than lower bound",
+                      });
+                    }
+                  }}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.b.toFixed(1)}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="c">Mode (c)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="c"
+                  min={distributionParams.a} 
+                  max={distributionParams.b} 
+                  step={0.1} 
+                  value={[distributionParams.c]}
+                  onValueChange={(value) => {
+                    if (value[0] >= distributionParams.a && value[0] <= distributionParams.b) {
+                      setDistributionParams({...distributionParams, c: value[0]})
+                    }
+                  }}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.c.toFixed(1)}</span>
+              </div>
+            </div>
+          </>
+        );
+      
+      case "chiSquared":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor="df">Degrees of Freedom</Label>
+            <div className="flex items-center space-x-2">
+              <Slider 
+                id="df"
+                min={1} 
+                max={20} 
+                step={1} 
+                value={[distributionParams.df]}
+                onValueChange={(value) => setDistributionParams({...distributionParams, df: value[0]})}
+                className="flex-1"
+              />
+              <span className="w-12 text-center">{distributionParams.df}</span>
+            </div>
+          </div>
+        );
+      
+      case "studentT":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor="df">Degrees of Freedom</Label>
+            <div className="flex items-center space-x-2">
+              <Slider 
+                id="df"
+                min={1} 
+                max={20} 
+                step={1} 
+                value={[distributionParams.df]}
+                onValueChange={(value) => setDistributionParams({...distributionParams, df: value[0]})}
+                className="flex-1"
+              />
+              <span className="w-12 text-center">{distributionParams.df}</span>
+            </div>
+          </div>
+        );
+      
+      case "poisson":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor="lambda">Rate Parameter (λ)</Label>
+            <div className="flex items-center space-x-2">
+              <Slider 
+                id="lambda"
+                min={0.1} 
+                max={10} 
+                step={0.1} 
+                value={[distributionParams.lambda]}
+                onValueChange={(value) => setDistributionParams({...distributionParams, lambda: value[0]})}
+                className="flex-1"
+              />
+              <span className="w-12 text-center">{distributionParams.lambda.toFixed(1)}</span>
+            </div>
+          </div>
+        );
+      
+      case "binomial":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="n">Number of Trials (n)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="n"
+                  min={1} 
+                  max={50} 
+                  step={1} 
+                  value={[distributionParams.n]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, n: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.n}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="p">Success Probability (p)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="p"
+                  min={0} 
+                  max={1} 
+                  step={0.01} 
+                  value={[distributionParams.p]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, p: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.p.toFixed(2)}</span>
+              </div>
+            </div>
+          </>
+        );
+        
+      default:
+        return null;
+    }
   };
 
   return (
@@ -720,123 +1074,7 @@ const CLTSampler = () => {
                   </div>
                   
                   <div className="space-y-4">
-                    {selectedDistribution === "normal" && (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="mean">Mean (μ)</Label>
-                          <div className="flex items-center space-x-2">
-                            <Slider 
-                              id="mean"
-                              min={-10} 
-                              max={10} 
-                              step={0.1} 
-                              value={[distributionParams.mean]}
-                              onValueChange={(value) => setDistributionParams({...distributionParams, mean: value[0]})}
-                              className="flex-1"
-                            />
-                            <span className="w-12 text-center">{distributionParams.mean.toFixed(1)}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="sd">Standard Deviation (σ)</Label>
-                          <div className="flex items-center space-x-2">
-                            <Slider 
-                              id="sd"
-                              min={0.1} 
-                              max={5} 
-                              step={0.1} 
-                              value={[distributionParams.sd]}
-                              onValueChange={(value) => setDistributionParams({...distributionParams, sd: value[0]})}
-                              className="flex-1"
-                            />
-                            <span className="w-12 text-center">{distributionParams.sd.toFixed(1)}</span>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                    
-                    {selectedDistribution === "uniform" && (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="a">Lower Bound (a)</Label>
-                          <div className="flex items-center space-x-2">
-                            <Slider 
-                              id="a"
-                              min={-10} 
-                              max={10} 
-                              step={0.1} 
-                              value={[distributionParams.a]}
-                              onValueChange={(value) => setDistributionParams({...distributionParams, a: value[0]})}
-                              className="flex-1"
-                            />
-                            <span className="w-12 text-center">{distributionParams.a.toFixed(1)}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="b">Upper Bound (b)</Label>
-                          <div className="flex items-center space-x-2">
-                            <Slider 
-                              id="b"
-                              min={-10} 
-                              max={10} 
-                              step={0.1} 
-                              value={[distributionParams.b]}
-                              onValueChange={(value) => {
-                                if (value[0] > distributionParams.a) {
-                                  setDistributionParams({...distributionParams, b: value[0]})
-                                } else {
-                                  toast({
-                                    variant: "destructive",
-                                    title: "Invalid input",
-                                    description: "Upper bound must be greater than lower bound",
-                                  });
-                                }
-                              }}
-                              className="flex-1"
-                            />
-                            <span className="w-12 text-center">{distributionParams.b.toFixed(1)}</span>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                    
-                    {selectedDistribution === "exponential" && (
-                      <div className="space-y-2">
-                        <Label htmlFor="lambda">Rate Parameter (λ)</Label>
-                        <div className="flex items-center space-x-2">
-                          <Slider 
-                            id="lambda"
-                            min={0.1} 
-                            max={5} 
-                            step={0.1} 
-                            value={[distributionParams.lambda]}
-                            onValueChange={(value) => setDistributionParams({...distributionParams, lambda: value[0]})}
-                            className="flex-1"
-                          />
-                          <span className="w-12 text-center">{distributionParams.lambda.toFixed(1)}</span>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {selectedDistribution === "bernoulli" && (
-                      <div className="space-y-2">
-                        <Label htmlFor="p">Success Probability (p)</Label>
-                        <div className="flex items-center space-x-2">
-                          <Slider 
-                            id="p"
-                            min={0} 
-                            max={1} 
-                            step={0.01} 
-                            value={[distributionParams.p]}
-                            onValueChange={(value) => setDistributionParams({...distributionParams, p: value[0]})}
-                            className="flex-1"
-                          />
-                          <span className="w-12 text-center">{distributionParams.p.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    )}
+                    {renderDistributionParams()}
                     
                     <div className="space-y-2">
                       <div className="flex items-center space-x-2">
@@ -1090,6 +1328,23 @@ const CLTSampler = () => {
             <Card>
               <CardHeader>
                 <CardTitle>About the Central Limit Theorem</CardTitle>
+                <CardDescription>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <a href="https://socr.umich.edu/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">SOCR</a>
+                    <span>•</span>
+                    <a href="https://doi.org/10.1080/10691898.2008.11889560" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">SOCR CLT Paper</a>
+                    <span>•</span>
+                    <a href="https://wiki.socr.umich.edu/index.php/SOCR_EduMaterials_Activities_GeneralCentralLimitTheorem" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">SOCR CLT learning activity</a>
+                    <span>•</span>
+                    <a href="http://socr.ucla.edu/htmls/SOCR_Experiments.html" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Earlier SOCR CLT Java applet</a>
+                    <span>•</span>
+                    <a href="https://github.com/SOCR/SOCR-Java/blob/master/src/edu/ucla/stat/SOCR/experiments/SamplingDistributionExperiment.java" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Java source code</a>
+                    <span>•</span>
+                    <a href="https://lovable.dev/projects/ce3b1264-08b8-43b0-990d-5f763b7177f1" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Lovable AI Engineer Project</a>
+                    <span>•</span>
+                    <a href="https://socr-clt-webapp.lovable.app/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">SOCR CLT Webapp deployment</a>
+                  </div>
+                </CardDescription>
               </CardHeader>
               <CardContent className="prose max-w-none">
                 <h3>What is the Central Limit Theorem?</h3>
