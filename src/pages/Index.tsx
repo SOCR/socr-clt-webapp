@@ -20,6 +20,7 @@ const CLTSampler = () => {
     currentSample: useRef<HTMLCanvasElement>(null),
     samplingDistribution1: useRef<HTMLCanvasElement>(null),
     samplingDistribution2: useRef<HTMLCanvasElement>(null),
+    manualDensity: useRef<HTMLCanvasElement>(null),
   };
 
   // Distribution and parameters state
@@ -35,7 +36,24 @@ const CLTSampler = () => {
     scale: 1,
     df: 5,
     c: 0.5,
-    n: 10
+    n: 10,
+    alpha: 2,
+    beta: 5,
+    k: 3,
+    theta: 2,
+    mu: 0,
+    sigma: 1,
+    nu: 3,
+    omega: 1,
+    xi: 0,
+    rate1: 1,
+    rate2: 2,
+    shape1: 2,
+    shape2: 3,
+    min: -3,
+    max: 3,
+    m: 5,
+    s: 1
   });
   
   // Sample size and number of samples state
@@ -63,6 +81,12 @@ const CLTSampler = () => {
   const [samplingData1, setSamplingData1] = useState<number[]>([]);
   const [samplingData2, setSamplingData2] = useState<number[]>([]);
   
+  // Manual density state
+  const [isDrawingDensity, setIsDrawingDensity] = useState(false);
+  const [manualDensityData, setManualDensityData] = useState<number[]>([]);
+  const [manualDensityBins, setManualDensityBins] = useState<number[]>(Array(50).fill(0));
+  const isDraggingRef = useRef(false);
+
   // Summary statistics
   const [populationStats, setPopulationStats] = useState({ size: 0, mean: 0, median: 0, sd: 0, skewness: 0, kurtosis: 0 });
   const [sampleStats, setSampleStats] = useState({ size: 0, mean: 0, median: 0, sd: 0, skewness: 0, kurtosis: 0 });
@@ -79,8 +103,48 @@ const CLTSampler = () => {
 
   // Update the population data when distribution or its parameters change
   useEffect(() => {
-    generatePopulationData();
+    if (selectedDistribution !== "manualDensity") {
+      generatePopulationData();
+    }
   }, [selectedDistribution, distributionParams]);
+
+  // Set up manual density canvas events
+  useEffect(() => {
+    if (selectedDistribution === "manualDensity" && canvasRefs.manualDensity.current) {
+      const canvas = canvasRefs.manualDensity.current;
+      
+      const handleMouseDown = (e: MouseEvent) => {
+        if (selectedDistribution !== "manualDensity") return;
+        isDraggingRef.current = true;
+        updateManualDensity(e);
+      };
+      
+      const handleMouseMove = (e: MouseEvent) => {
+        if (selectedDistribution !== "manualDensity" || !isDraggingRef.current) return;
+        updateManualDensity(e);
+      };
+      
+      const handleMouseUp = () => {
+        isDraggingRef.current = false;
+      };
+      
+      const handleMouseLeave = () => {
+        isDraggingRef.current = false;
+      };
+      
+      canvas.addEventListener('mousedown', handleMouseDown);
+      canvas.addEventListener('mousemove', handleMouseMove);
+      canvas.addEventListener('mouseup', handleMouseUp);
+      canvas.addEventListener('mouseleave', handleMouseLeave);
+      
+      return () => {
+        canvas.removeEventListener('mousedown', handleMouseDown);
+        canvas.removeEventListener('mousemove', handleMouseMove);
+        canvas.removeEventListener('mouseup', handleMouseUp);
+        canvas.removeEventListener('mouseleave', handleMouseLeave);
+      };
+    }
+  }, [selectedDistribution]);
 
   // Draw the histograms whenever data changes
   useEffect(() => {
@@ -88,7 +152,10 @@ const CLTSampler = () => {
     drawCurrentSampleHistogram();
     drawSamplingDistribution1();
     drawSamplingDistribution2();
-  }, [populationData, currentSample, samplingData1, samplingData2, fitNormal1, fitNormal2, animationPoint]);
+    if (selectedDistribution === "manualDensity") {
+      drawManualDensity();
+    }
+  }, [populationData, currentSample, samplingData1, samplingData2, fitNormal1, fitNormal2, animationPoint, manualDensityBins]);
 
   // Clean up animation frames when component unmounts
   useEffect(() => {
@@ -97,8 +164,114 @@ const CLTSampler = () => {
     };
   }, []);
 
+  // Handle manual density drawing
+  const updateManualDensity = (e: MouseEvent) => {
+    if (!canvasRefs.manualDensity.current) return;
+    
+    const canvas = canvasRefs.manualDensity.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Convert x position to bin index (considering margins)
+    const binIndex = Math.floor((x - 30) / ((canvas.width - 40) / manualDensityBins.length));
+    
+    if (binIndex >= 0 && binIndex < manualDensityBins.length) {
+      // Convert y position to height value (0 at bottom, 1 at top)
+      const height = Math.max(0, Math.min(1, 1 - (y - 10) / (canvas.height - 40)));
+      
+      // Update the bin height
+      const newBins = [...manualDensityBins];
+      newBins[binIndex] = height;
+      setManualDensityBins(newBins);
+      
+      // Generate population data from the manual density
+      generateManualPopulationData(newBins);
+    }
+  };
+
+  // Generate population data from manual density bins
+  const generateManualPopulationData = (bins: number[]) => {
+    const data: number[] = [];
+    const totalWeight = bins.reduce((sum, bin) => sum + bin, 0);
+    
+    if (totalWeight === 0) {
+      setPopulationData([]);
+      setPopulationStats({ size: 0, mean: 0, median: 0, sd: 0, skewness: 0, kurtosis: 0 });
+      return;
+    }
+    
+    // Generate data proportional to bin heights
+    for (let i = 0; i < bins.length; i++) {
+      const binCenter = -5 + (10 * i / bins.length) + (5 / bins.length);
+      const count = Math.round((bins[i] / totalWeight) * 10000);
+      
+      for (let j = 0; j < count; j++) {
+        // Add some small random noise within the bin
+        const noise = (Math.random() - 0.5) * (10 / bins.length);
+        data.push(binCenter + noise);
+      }
+    }
+    
+    setPopulationData(data);
+    setPopulationStats(calculateStatistics(data));
+  };
+
+  // Draw the manual density editor
+  const drawManualDensity = () => {
+    if (!canvasRefs.manualDensity.current) return;
+    
+    const canvas = canvasRefs.manualDensity.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Clear the canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw the coordinate frame
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(30, 10);
+    ctx.lineTo(30, canvas.height - 30);
+    ctx.lineTo(canvas.width - 10, canvas.height - 30);
+    ctx.stroke();
+    
+    // Draw the histogram bars
+    const barWidth = Math.max((canvas.width - 40) / manualDensityBins.length, 1);
+    
+    ctx.fillStyle = 'rgb(59, 130, 246)';
+    for (let i = 0; i < manualDensityBins.length; i++) {
+      const barHeight = manualDensityBins[i] * (canvas.height - 40);
+      ctx.fillRect(
+        30 + i * barWidth,
+        canvas.height - 30 - barHeight,
+        barWidth - 1,
+        barHeight
+      );
+    }
+    
+    // Draw axes labels
+    ctx.fillStyle = '#666';
+    ctx.font = '10px Arial';
+    
+    // X-axis labels
+    ctx.textAlign = 'center';
+    ctx.fillText('-5', 30, canvas.height - 15);
+    ctx.fillText('0', canvas.width / 2, canvas.height - 15);
+    ctx.fillText('5', canvas.width - 10, canvas.height - 15);
+    
+    // Instructions
+    ctx.fillStyle = '#333';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Click and drag to draw your custom probability density', canvas.width / 2, 25);
+  };
+
   // Generate the population data based on the selected distribution
   const generatePopulationData = () => {
+    if (selectedDistribution === "manualDensity") return;
+    
     const dist = distributions[selectedDistribution];
     const params = distributionParams;
     const data = [];
@@ -146,11 +319,17 @@ const CLTSampler = () => {
     const variance = sumSquaredDiff / size;
     const sd = Math.sqrt(variance);
     
-    // Skewness
-    const skewness = sumCubedDiff / (size * Math.pow(sd, 3));
+    // Handle division by zero for skewness and kurtosis
+    let skewness = 0;
+    let kurtosis = 0;
     
-    // Kurtosis (excess kurtosis = kurtosis - 3)
-    const kurtosis = sumQuarticDiff / (size * Math.pow(sd, 4)) - 3;
+    if (sd > 0) {
+      // Skewness
+      skewness = sumCubedDiff / (size * Math.pow(sd, 3));
+      
+      // Kurtosis (excess kurtosis = kurtosis - 3)
+      kurtosis = sumQuarticDiff / (size * Math.pow(sd, 4)) - 3;
+    }
     
     return {
       size,
@@ -175,11 +354,68 @@ const CLTSampler = () => {
     setSampling2Stats({ size: 0, mean: 0, median: 0, sd: 0, skewness: 0, kurtosis: 0 });
   };
 
+  // Reset the entire application to defaults
+  const resetApplication = () => {
+    stopAnimation();
+    setSelectedDistribution("normal");
+    setDistributionParams({ 
+      mean: 0, 
+      sd: 1, 
+      p: 0.5, 
+      lambda: 1, 
+      a: 0, 
+      b: 1, 
+      location: 0,
+      scale: 1,
+      df: 5,
+      c: 0.5,
+      n: 10,
+      alpha: 2,
+      beta: 5,
+      k: 3,
+      theta: 2,
+      mu: 0,
+      sigma: 1,
+      nu: 3,
+      omega: 1,
+      xi: 0,
+      rate1: 1,
+      rate2: 2,
+      shape1: 2,
+      shape2: 3,
+      min: -3,
+      max: 3,
+      m: 5,
+      s: 1
+    });
+    setSampleSize(5);
+    setManualDensityBins(Array(50).fill(0));
+    resetSamplingDistributions();
+    
+    toast({
+      title: "Application Reset",
+      description: "All settings and data have been reset to default values.",
+    });
+    
+    // Force a regeneration of the population data
+    setTimeout(() => generatePopulationData(), 10);
+  };
+
   // Take a single sample with animation
   const takeSample = (enableAnimation = true) => {
     if (sampleStepAnimationRef.current !== null) {
       cancelAnimationFrame(sampleStepAnimationRef.current);
       sampleStepAnimationRef.current = null;
+    }
+    
+    // Check if there's any population data to sample from
+    if (populationData.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "No population data",
+        description: "Please select a distribution or draw a custom density first.",
+      });
+      return;
     }
     
     // Create a new empty sample array
@@ -363,16 +599,6 @@ const CLTSampler = () => {
     }
   };
 
-  // Clear all samples
-  const clearSamples = () => {
-    stopAnimation();
-    resetSamplingDistributions();
-    toast({
-      title: "Samples cleared",
-      description: "All sampling data has been reset.",
-    });
-  };
-
   // Draw the population histogram
   const drawPopulationHistogram = () => {
     if (!canvasRefs.population.current || populationData.length === 0) return;
@@ -529,6 +755,20 @@ const CLTSampler = () => {
     // Find the maximum bin proportion for scaling
     const maxBinProportion = Math.max(...binProportions);
     
+    // Calculate the normal curve values if fitting
+    let maxNormalValue = 0;
+    if (fitNormal && stats.sd > 0) {
+      const step = (adjustedMax - adjustedMin) / 100;
+      for (let x = adjustedMin; x <= adjustedMax; x += step) {
+        const normalValue = (1 / (stats.sd * Math.sqrt(2 * Math.PI))) * 
+                            Math.exp(-0.5 * Math.pow((x - stats.mean) / stats.sd, 2));
+        maxNormalValue = Math.max(maxNormalValue, normalValue);
+      }
+    }
+    
+    // Use the maximum of histogram and normal curve for scaling
+    const maxValue = Math.max(maxBinProportion, maxNormalValue);
+    
     // Draw the coordinate frame
     ctx.strokeStyle = '#666';
     ctx.lineWidth = 1;
@@ -543,7 +783,7 @@ const CLTSampler = () => {
     
     ctx.fillStyle = color;
     for (let i = 0; i < binCount; i++) {
-      const barHeight = (binProportions[i] / maxBinProportion) * (height - 40);
+      const barHeight = (binProportions[i] / maxValue) * (height - 40);
       ctx.fillRect(
         30 + i * barWidth,
         height - 30 - barHeight,
@@ -554,11 +794,11 @@ const CLTSampler = () => {
     
     // Draw a normal curve if requested
     if (fitNormal && data.length > 1) {
-      drawNormalCurve(ctx, width, height, stats.mean, stats.sd, adjustedMin, adjustedMax, maxBinProportion);
+      drawNormalCurve(ctx, width, height, stats.mean, stats.sd, adjustedMin, adjustedMax, maxValue);
     }
     
     // Draw the axes labels
-    drawAxesLabels(ctx, width, height, adjustedMin, adjustedMax, maxBinProportion);
+    drawAxesLabels(ctx, width, height, adjustedMin, adjustedMax, maxValue);
     
     // Draw the statistics
     drawStatistics(ctx, width, height, stats);
@@ -589,12 +829,13 @@ const CLTSampler = () => {
     sd: number, 
     min: number, 
     max: number, 
-    maxProportion: number
+    maxValue: number
   ) => {
     if (sd === 0) return;
     
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.lineWidth = 2;
+    // Use black color with increased line width for better visibility
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+    ctx.lineWidth = 3;
     ctx.beginPath();
     
     const step = (max - min) / 100;
@@ -605,8 +846,8 @@ const CLTSampler = () => {
       const normalValue = (1 / (sd * Math.sqrt(2 * Math.PI))) * 
                           Math.exp(-0.5 * Math.pow((x - mean) / sd, 2));
       
-      // Scale to fit canvas - already using proportion scale
-      const scaledValue = normalValue / maxProportion * (height - 40);
+      // Scale to fit canvas based on the max value
+      const scaledValue = normalValue / maxValue * (height - 40);
       
       const canvasX = 30 + ((x - min) / (max - min)) * (width - 40);
       const canvasY = height - 30 - scaledValue;
@@ -629,7 +870,7 @@ const CLTSampler = () => {
     height: number, 
     min: number, 
     max: number, 
-    maxProportion: number
+    maxValue: number
   ) => {
     ctx.fillStyle = '#666';
     ctx.font = '10px Arial';
@@ -643,8 +884,8 @@ const CLTSampler = () => {
     // Y-axis labels (now using proportions)
     ctx.textAlign = 'right';
     ctx.fillText('0', 25, height - 30);
-    ctx.fillText((maxProportion / 2).toFixed(3), 25, height - 30 - (height - 40) / 2);
-    ctx.fillText(maxProportion.toFixed(3), 25, 15);
+    ctx.fillText((maxValue / 2).toFixed(3), 25, height - 30 - (height - 40) / 2);
+    ctx.fillText(maxValue.toFixed(3), 25, 15);
   };
 
   // Draw statistics on a histogram
@@ -984,6 +1225,347 @@ const CLTSampler = () => {
             </div>
           </>
         );
+
+      case "gamma":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="alpha">Shape (α)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="alpha"
+                  min={0.1} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.alpha]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, alpha: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.alpha.toFixed(1)}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="beta">Rate (β)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="beta"
+                  min={0.1} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.beta]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, beta: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.beta.toFixed(1)}</span>
+              </div>
+            </div>
+          </>
+        );
+
+      case "weibull":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="k">Shape (k)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="k"
+                  min={0.1} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.k]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, k: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.k.toFixed(1)}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="lambda">Scale (λ)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="lambda"
+                  min={0.1} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.lambda]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, lambda: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.lambda.toFixed(1)}</span>
+              </div>
+            </div>
+          </>
+        );
+
+      case "beta":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="alpha">α Parameter</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="alpha"
+                  min={0.1} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.alpha]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, alpha: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.alpha.toFixed(1)}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="beta">β Parameter</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="beta"
+                  min={0.1} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.beta]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, beta: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.beta.toFixed(1)}</span>
+              </div>
+            </div>
+          </>
+        );
+
+      case "logNormal":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="mu">μ Parameter</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="mu"
+                  min={-3} 
+                  max={3} 
+                  step={0.1} 
+                  value={[distributionParams.mu]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, mu: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.mu.toFixed(1)}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="sigma">σ Parameter</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="sigma"
+                  min={0.1} 
+                  max={3} 
+                  step={0.1} 
+                  value={[distributionParams.sigma]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, sigma: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.sigma.toFixed(1)}</span>
+              </div>
+            </div>
+          </>
+        );
+
+      case "pareto":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="alpha">Shape (α)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="alpha"
+                  min={0.1} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.alpha]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, alpha: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.alpha.toFixed(1)}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="m">Scale (minimum)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="m"
+                  min={0.1} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.m]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, m: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.m.toFixed(1)}</span>
+              </div>
+            </div>
+          </>
+        );
+
+      case "laplace":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="mu">Location (μ)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="mu"
+                  min={-10} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.mu]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, mu: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.mu.toFixed(1)}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="b">Scale (b)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="b"
+                  min={0.1} 
+                  max={5} 
+                  step={0.1} 
+                  value={[distributionParams.b]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, b: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.b.toFixed(1)}</span>
+              </div>
+            </div>
+          </>
+        );
+
+      case "geometric":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor="p">Success Probability (p)</Label>
+            <div className="flex items-center space-x-2">
+              <Slider 
+                id="p"
+                min={0.01} 
+                max={1} 
+                step={0.01} 
+                value={[distributionParams.p]}
+                onValueChange={(value) => setDistributionParams({...distributionParams, p: value[0]})}
+                className="flex-1"
+              />
+              <span className="w-12 text-center">{distributionParams.p.toFixed(2)}</span>
+            </div>
+          </div>
+        );
+
+      case "logistic":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="mu">Location (μ)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="mu"
+                  min={-10} 
+                  max={10} 
+                  step={0.1} 
+                  value={[distributionParams.mu]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, mu: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.mu.toFixed(1)}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="s">Scale (s)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="s"
+                  min={0.1} 
+                  max={5} 
+                  step={0.1} 
+                  value={[distributionParams.s]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, s: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.s.toFixed(1)}</span>
+              </div>
+            </div>
+          </>
+        );
+
+      case "negativeBinomial":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="r">Number of Successes (r)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="r"
+                  min={1} 
+                  max={20} 
+                  step={1} 
+                  value={[distributionParams.r]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, r: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.r}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="p">Success Probability (p)</Label>
+              <div className="flex items-center space-x-2">
+                <Slider 
+                  id="p"
+                  min={0.01} 
+                  max={1} 
+                  step={0.01} 
+                  value={[distributionParams.p]}
+                  onValueChange={(value) => setDistributionParams({...distributionParams, p: value[0]})}
+                  className="flex-1"
+                />
+                <span className="w-12 text-center">{distributionParams.p.toFixed(2)}</span>
+              </div>
+            </div>
+          </>
+        );
+
+      case "manualDensity":
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Use the canvas below to draw your custom probability density by clicking and dragging.
+            </p>
+            <canvas
+              ref={canvasRefs.manualDensity}
+              width={500}
+              height={200}
+              className="w-full h-auto bg-muted/20 rounded-md border border-dashed border-gray-300"
+            ></canvas>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                setManualDensityBins(Array(50).fill(0));
+                setPopulationData([]);
+                setPopulationStats({ size: 0, mean: 0, median: 0, sd: 0, skewness: 0, kurtosis: 0 });
+              }}
+            >
+              Clear Drawing
+            </Button>
+          </div>
+        );
         
       default:
         return null;
@@ -1023,14 +1605,15 @@ const CLTSampler = () => {
                           setSelectedDistribution(value);
                           toast({
                             title: "Distribution changed",
-                            description: `Changed to ${distributions[value].name}`,
+                            description: `Changed to ${value === 'manualDensity' ? 'Manual Density' : distributions[value].name}`,
                           });
                         }}
                       >
                         <SelectTrigger id="distribution">
                           <SelectValue placeholder="Select a distribution" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="max-h-80">
+                          <SelectItem value="manualDensity">Manual Density</SelectItem>
                           {Object.keys(distributions).map((key) => (
                             <SelectItem key={key} value={key}>
                               {distributions[key].name}
@@ -1076,16 +1659,18 @@ const CLTSampler = () => {
                   <div className="space-y-4">
                     {renderDistributionParams()}
                     
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <Label htmlFor="step-animation">Show Step Animation</Label>
-                        <Switch 
-                          id="step-animation" 
-                          checked={showStepAnimation}
-                          onCheckedChange={setShowStepAnimation}
-                        />
+                    {selectedDistribution !== "manualDensity" && (
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Label htmlFor="step-animation">Show Step Animation</Label>
+                          <Switch 
+                            id="step-animation" 
+                            checked={showStepAnimation}
+                            onCheckedChange={setShowStepAnimation}
+                          />
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -1096,9 +1681,9 @@ const CLTSampler = () => {
                 <div className="space-x-2">
                   <Button 
                     variant="outline" 
-                    onClick={clearSamples}
+                    onClick={resetApplication}
                   >
-                    Clear Samples
+                    Reset
                   </Button>
                   <Button 
                     variant={isAnimating ? "destructive" : "default"}
