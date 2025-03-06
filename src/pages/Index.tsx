@@ -1,13 +1,14 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { distributions, calculateMean, calculateSD, calculateMedian, calculateSkewness, calculateKurtosis } from '../lib/distributions';
 import ManualDistribution from '../components/ManualDistribution';
 import { normalizeBins, binsToDistribution } from '../lib/manualDistributionUtils';
 
 const Index = () => {
-  const [distParams, setDistParams] = useState({ bins: Array(20).fill(0) });
+  const [distParams, setDistParams] = useState<{ bins: number[] }>({ bins: Array(20).fill(0) });
   const [selectedDist, setSelectedDist] = useState('normal');
   const [manualBins, setManualBins] = useState(Array(20).fill(0));
-  const [manualDistribution, setManualDistribution] = useState(null);
+  const [manualDistribution, setManualDistribution] = useState<((count: number) => number[]) | null>(null);
 
   useEffect(() => {
     const newDistribution = binsToDistribution(manualBins);
@@ -24,7 +25,7 @@ const Index = () => {
     
     // Directly update distParams if manual distribution is selected
     if (selectedDist === 'manual') {
-      setDistParams({ ...distParams, bins: newBins });
+      setDistParams({ bins: newBins });
     }
   };
   
@@ -37,7 +38,7 @@ const Index = () => {
       setDistParams({ bins: manualBins });
     } else {
       // Set appropriate default parameters for other distributions
-      setDistParams({});
+      setDistParams({ bins: Array(20).fill(0) });
     }
   };
 
@@ -89,13 +90,7 @@ const Index = () => {
           
           {/* Distribution parameters UI */}
           <div>
-            {Object.keys(distributions[selectedDist]).map((param, index) => (
-              <div key={index}>
-                {/* Render parameter input fields based on the selected distribution */}
-                {/* Example: */}
-                {param}: <input type="number" />
-              </div>
-            ))}
+            {/* Parameter rendering will be expanded in the future */}
           </div>
           
           {selectedDist === 'manual' && (
@@ -113,11 +108,14 @@ const Index = () => {
         
         <div className="bg-white p-4 rounded shadow">
           <h2 className="text-xl font-semibold mb-2">Distribution Visualization</h2>
-          {/* Distribution visualization components */}
           <div>
             <p>Selected Distribution: {selectedDist}</p>
             <p>
-              Mean: {calculateMean(distParams)}
+              Mean: {
+                selectedDist === 'manual' 
+                  ? calculateMean(manualBins) 
+                  : 'Not calculated'
+              }
             </p>
           </div>
         </div>
