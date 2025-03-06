@@ -44,7 +44,7 @@ const ManualDistribution: React.FC<ManualDistributionProps> = ({
     ctx.fillRect(0, 0, width, height);
 
     // Find max value for scaling
-    const maxBinValue = Math.max(...localBins, 1);
+    const maxBinValue = Math.max(...localBins, 0.1);
     
     // Draw bins
     const binWidth = width / localBins.length;
@@ -100,13 +100,21 @@ const ManualDistribution: React.FC<ManualDistributionProps> = ({
     
     if (binIndex >= 0 && binIndex < localBins.length) {
       // Calculate height as inverse of y position (higher y = smaller value)
-      const value = Math.max(0, height - y) / height;
+      // Scale from 0 to 1 based on canvas height
+      const value = Math.max(0, Math.min(1, (height - y) / height));
       
       // Update the bin value
       const newBins = [...localBins];
       newBins[binIndex] = value;
       setLocalBins(newBins);
     }
+  };
+
+  // Clear the canvas with double-click
+  const handleDoubleClick = () => {
+    const newBins = Array(localBins.length).fill(0);
+    setLocalBins(newBins);
+    onChange(newBins);
   };
 
   return (
@@ -119,10 +127,11 @@ const ManualDistribution: React.FC<ManualDistributionProps> = ({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
+        onDoubleClick={handleDoubleClick}
         style={{ cursor: 'pointer', border: '1px solid #ddd' }}
       />
       <div className="text-sm text-gray-600 mt-2">
-        Click and drag to draw the density histogram
+        Click and drag to draw the density histogram. Double-click to clear.
       </div>
     </div>
   );
