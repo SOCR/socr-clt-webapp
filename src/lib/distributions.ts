@@ -1,3 +1,4 @@
+
 // Define a generic interface for distributions
 interface Distribution {
   name: string;
@@ -198,7 +199,7 @@ export const distributions: DistributionMap = {
       // Marsaglia and Tsang's method
       const d = a - 1/3;
       const c = 1 / Math.sqrt(9 * d);
-      let v, x;
+      let v, x, u;
       
       do {
         do {
@@ -207,7 +208,7 @@ export const distributions: DistributionMap = {
         } while (v <= 0);
         
         v = v * v * v;
-        const u = Math.random();
+        u = Math.random();
         
       } while (u > 1 - 0.331 * Math.pow(x, 4) && 
                Math.log(u) > 0.5 * x * x + d * (1 - v + Math.log(v)));
