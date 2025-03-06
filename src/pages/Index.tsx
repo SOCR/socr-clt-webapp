@@ -53,11 +53,7 @@ const CLTSampler = () => {
     min: -3,
     max: 3,
     m: 5,
-    s: 1,
-    r: 5, // Adding r parameter for negative binomial
-    N: 50, // Adding parameters for hypergeometric
-    K: 20,
-    sigma2: 1 // Adding parameter for other distributions
+    s: 1
   });
   
   // Sample size and number of samples state
@@ -90,7 +86,6 @@ const CLTSampler = () => {
   const [manualDensityData, setManualDensityData] = useState<number[]>([]);
   const [manualDensityBins, setManualDensityBins] = useState<number[]>(Array(50).fill(0));
   const isDraggingRef = useRef(false);
-  const lastPositionRef = useRef<number | null>(null);
 
   // Summary statistics
   const [populationStats, setPopulationStats] = useState({ size: 0, mean: 0, median: 0, sd: 0, skewness: 0, kurtosis: 0 });
@@ -131,12 +126,10 @@ const CLTSampler = () => {
       
       const handleMouseUp = () => {
         isDraggingRef.current = false;
-        lastPositionRef.current = null;
       };
       
       const handleMouseLeave = () => {
         isDraggingRef.current = false;
-        lastPositionRef.current = null;
       };
       
       canvas.addEventListener('mousedown', handleMouseDown);
@@ -187,29 +180,9 @@ const CLTSampler = () => {
       // Convert y position to height value (0 at bottom, 1 at top)
       const height = Math.max(0, Math.min(1, 1 - (y - 10) / (canvas.height - 40)));
       
-      // Create a new bins array
+      // Update the bin height
       const newBins = [...manualDensityBins];
-      
-      // If this is part of a drag operation, interpolate between last position and current
-      if (isDraggingRef.current && lastPositionRef.current !== null) {
-        const lastBin = lastPositionRef.current;
-        const minBin = Math.min(lastBin, binIndex);
-        const maxBin = Math.max(lastBin, binIndex);
-        
-        for (let i = minBin; i <= maxBin; i++) {
-          // Linear interpolation between last position and current
-          const t = (i - minBin) / Math.max(1, maxBin - minBin);
-          const lastHeight = newBins[lastBin];
-          newBins[i] = lastHeight + t * (height - lastHeight);
-        }
-      } else {
-        // Just set the current bin
-        newBins[binIndex] = height;
-      }
-      
-      // Update last position for the next drag event
-      lastPositionRef.current = binIndex;
-      
+      newBins[binIndex] = height;
       setManualDensityBins(newBins);
       
       // Generate population data from the manual density
@@ -413,11 +386,7 @@ const CLTSampler = () => {
       min: -3,
       max: 3,
       m: 5,
-      s: 1,
-      r: 5,
-      N: 50,
-      K: 20,
-      sigma2: 1
+      s: 1
     });
     setSampleSize(5);
     setManualDensityBins(Array(50).fill(0));
@@ -1570,134 +1539,6 @@ const CLTSampler = () => {
               </div>
             </div>
           </>
-        );
-
-      case "hypergeometric":
-        return (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="N">Population Size (N)</Label>
-              <div className="flex items-center space-x-2">
-                <Slider 
-                  id="N"
-                  min={10} 
-                  max={100} 
-                  step={1} 
-                  value={[distributionParams.N]}
-                  onValueChange={(value) => setDistributionParams({...distributionParams, N: value[0]})}
-                  className="flex-1"
-                />
-                <span className="w-12 text-center">{distributionParams.N}</span>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="K">Number of Success States (K)</Label>
-              <div className="flex items-center space-x-2">
-                <Slider 
-                  id="K"
-                  min={1} 
-                  max={distributionParams.N} 
-                  step={1} 
-                  value={[distributionParams.K]}
-                  onValueChange={(value) => setDistributionParams({...distributionParams, K: value[0]})}
-                  className="flex-1"
-                />
-                <span className="w-12 text-center">{distributionParams.K}</span>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="n">Sample Size (n)</Label>
-              <div className="flex items-center space-x-2">
-                <Slider 
-                  id="n"
-                  min={1} 
-                  max={distributionParams.N} 
-                  step={1} 
-                  value={[distributionParams.n]}
-                  onValueChange={(value) => setDistributionParams({...distributionParams, n: value[0]})}
-                  className="flex-1"
-                />
-                <span className="w-12 text-center">{distributionParams.n}</span>
-              </div>
-            </div>
-          </>
-        );
-
-      case "rayleigh":
-        return (
-          <div className="space-y-2">
-            <Label htmlFor="sigma">Scale Parameter (σ)</Label>
-            <div className="flex items-center space-x-2">
-              <Slider 
-                id="sigma"
-                min={0.1} 
-                max={5} 
-                step={0.1} 
-                value={[distributionParams.sigma]}
-                onValueChange={(value) => setDistributionParams({...distributionParams, sigma: value[0]})}
-                className="flex-1"
-              />
-              <span className="w-12 text-center">{distributionParams.sigma.toFixed(1)}</span>
-            </div>
-          </div>
-        );
-
-      case "erlang":
-        return (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="k">Shape Parameter (k)</Label>
-              <div className="flex items-center space-x-2">
-                <Slider 
-                  id="k"
-                  min={1} 
-                  max={20} 
-                  step={1} 
-                  value={[distributionParams.k]}
-                  onValueChange={(value) => setDistributionParams({...distributionParams, k: value[0]})}
-                  className="flex-1"
-                />
-                <span className="w-12 text-center">{distributionParams.k}</span>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="lambda">Rate Parameter (λ)</Label>
-              <div className="flex items-center space-x-2">
-                <Slider 
-                  id="lambda"
-                  min={0.1} 
-                  max={5} 
-                  step={0.1} 
-                  value={[distributionParams.lambda]}
-                  onValueChange={(value) => setDistributionParams({...distributionParams, lambda: value[0]})}
-                  className="flex-1"
-                />
-                <span className="w-12 text-center">{distributionParams.lambda.toFixed(1)}</span>
-              </div>
-            </div>
-          </>
-        );
-
-      case "maxwellBoltzmann":
-        return (
-          <div className="space-y-2">
-            <Label htmlFor="a">Scale Parameter (a)</Label>
-            <div className="flex items-center space-x-2">
-              <Slider 
-                id="a"
-                min={0.1} 
-                max={5} 
-                step={0.1} 
-                value={[distributionParams.a]}
-                onValueChange={(value) => setDistributionParams({...distributionParams, a: value[0]})}
-                className="flex-1"
-              />
-              <span className="w-12 text-center">{distributionParams.a.toFixed(1)}</span>
-            </div>
-          </div>
         );
 
       case "manualDensity":
