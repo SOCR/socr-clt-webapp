@@ -199,6 +199,160 @@ export const weibull: Distribution = {
   }
 };
 
+// Pareto distribution
+export const pareto: Distribution = {
+  name: "Pareto Distribution",
+  category: "continuous",
+  generate: (params) => {
+    const { scale, shape } = params;
+    return scale / Math.pow(Math.random(), 1 / shape);
+  },
+  pdf: (x, params) => {
+    const { scale, shape } = params;
+    if (x < scale) return 0;
+    return (shape * Math.pow(scale, shape)) / Math.pow(x, shape + 1);
+  }
+};
+
+// Laplace distribution
+export const laplace: Distribution = {
+  name: "Laplace Distribution",
+  category: "continuous",
+  generate: (params) => {
+    const { location, scale } = params;
+    const u = Math.random() - 0.5;
+    return location - scale * Math.sign(u) * Math.log(1 - 2 * Math.abs(u));
+  },
+  pdf: (x, params) => {
+    const { location, scale } = params;
+    return (1 / (2 * scale)) * Math.exp(-Math.abs(x - location) / scale);
+  }
+};
+
+// Rayleigh distribution
+export const rayleigh: Distribution = {
+  name: "Rayleigh Distribution",
+  category: "continuous",
+  generate: (params) => {
+    const { scale } = params;
+    return scale * Math.sqrt(-2 * Math.log(Math.random()));
+  },
+  pdf: (x, params) => {
+    const { scale } = params;
+    if (x < 0) return 0;
+    return (x / (scale * scale)) * Math.exp(-(x * x) / (2 * scale * scale));
+  }
+};
+
+// Maxwell-Boltzmann distribution
+export const maxwellBoltzmann: Distribution = {
+  name: "Maxwell-Boltzmann Distribution",
+  category: "continuous",
+  generate: (params) => {
+    const { scale } = params;
+    // Use Box-Muller transform for three normal variables
+    let x, y, z;
+    x = normal.generate({ mean: 0, sd: 1 });
+    y = normal.generate({ mean: 0, sd: 1 });
+    z = normal.generate({ mean: 0, sd: 1 });
+    
+    // Compute the magnitude of the vector (x,y,z)
+    return scale * Math.sqrt(x*x + y*y + z*z);
+  },
+  pdf: (x, params) => {
+    const { scale } = params;
+    if (x < 0) return 0;
+    return Math.sqrt(2/Math.PI) * 
+           (x*x / Math.pow(scale, 3)) * 
+           Math.exp(-x*x / (2*scale*scale));
+  }
+};
+
+// Gumbel (extreme value) distribution
+export const gumbel: Distribution = {
+  name: "Gumbel Distribution",
+  category: "continuous",
+  generate: (params) => {
+    const { location, scale } = params;
+    return location - scale * Math.log(-Math.log(Math.random()));
+  },
+  pdf: (x, params) => {
+    const { location, scale } = params;
+    const z = (x - location) / scale;
+    return (1 / scale) * Math.exp(-(z + Math.exp(-z)));
+  }
+};
+
+// Logistic distribution
+export const logistic: Distribution = {
+  name: "Logistic Distribution",
+  category: "continuous",
+  generate: (params) => {
+    const { location, scale } = params;
+    const u = Math.random();
+    return location + scale * Math.log(u / (1 - u));
+  },
+  pdf: (x, params) => {
+    const { location, scale } = params;
+    const z = (x - location) / scale;
+    const expNegZ = Math.exp(-z);
+    return expNegZ / (scale * Math.pow(1 + expNegZ, 2));
+  }
+};
+
+// Chi distribution
+export const chi: Distribution = {
+  name: "Chi Distribution",
+  category: "continuous",
+  generate: (params) => {
+    const { df } = params;
+    let sumSquares = 0;
+    
+    // Generate df standard normal variables and sum their squares
+    for (let i = 0; i < df; i++) {
+      const z = normal.generate({ mean: 0, sd: 1 });
+      sumSquares += z * z;
+    }
+    
+    return Math.sqrt(sumSquares);
+  },
+  pdf: (x, params) => {
+    const { df } = params;
+    if (x < 0) return 0;
+    
+    const halfDf = df / 2;
+    return (Math.pow(2, 1 - halfDf) / Math.exp(logGamma(halfDf))) * 
+           Math.pow(x, df - 1) * 
+           Math.exp(-x * x / 2);
+  }
+};
+
+// Inverse Gaussian (Wald) distribution
+export const inverseGaussian: Distribution = {
+  name: "Inverse Gaussian Distribution",
+  category: "continuous",
+  generate: (params) => {
+    const { mu, lambda } = params;
+    const v = normal.generate({ mean: 0, sd: 1 });
+    const y = v * v;
+    const x = mu + (mu * mu * y) / (2 * lambda) - 
+              (mu / (2 * lambda)) * Math.sqrt(4 * mu * lambda * y + mu * mu * y * y);
+    
+    if (Math.random() <= mu / (mu + x)) {
+      return x;
+    } else {
+      return mu * mu / x;
+    }
+  },
+  pdf: (x, params) => {
+    const { mu, lambda } = params;
+    if (x <= 0) return 0;
+    
+    return Math.sqrt(lambda / (2 * Math.PI * Math.pow(x, 3))) * 
+           Math.exp((-lambda * Math.pow(x - mu, 2)) / (2 * mu * mu * x));
+  }
+};
+
 // Helper function: Log gamma function using Lanczos approximation
 function logGamma(z: number): number {
   const p = [

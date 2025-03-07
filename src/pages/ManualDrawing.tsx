@@ -6,16 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ManualDistribution } from '@/lib/distributions';
 import { Link } from 'react-router-dom';
+import { Slider } from "@/components/ui/slider";
+import { useToast } from "@/components/ui/use-toast";
 
 const ManualDrawing: React.FC = () => {
   const [manualDist] = useState<ManualDistribution>(new ManualDistribution());
   const [points, setPoints] = useState<[number, number][]>([]);
   const [samples, setSamples] = useState<number[]>([]);
   const [sampleSize, setSampleSize] = useState(100);
+  const [smoothingFactor, setSmoothingFactor] = useState(5);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [canvasWidth, setCanvasWidth] = useState(600);
   const [canvasHeight, setCanvasHeight] = useState(300);
+  const lastPointRef = useRef<[number, number] | null>(null);
+  const { toast } = useToast();
 
   // Resize canvas based on container
   useEffect(() => {
@@ -100,6 +105,24 @@ const ManualDrawing: React.FC = () => {
     ctx.restore();
   }, [points, samples]);
 
+  // Interpolate between two points using linear interpolation
+  const interpolatePoints = (
+    start: [number, number], 
+    end: [number, number], 
+    steps: number
+  ): [number, number][] => {
+    const interpolated: [number, number][] = [];
+    
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = start[0] + t * (end[0] - start[0]);
+      const y = start[1] + t * (end[1] - start[1]);
+      interpolated.push([x, y]);
+    }
+    
+    return interpolated;
+  };
+
   // Handle mouse/touch events for drawing
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDrawing(true);
@@ -113,16 +136,23 @@ const ManualDrawing: React.FC = () => {
     
     // Convert to distribution space
     const xDist = -3 + x * 6; // Map [0,1] to [-3,3]
-    const yDist = y;
+    const yDist = Math.max(0, y); // Ensure y is non-negative
     
-    // Add point and update
+    // Reset the manual distribution
     manualDist.clearPoints();
+    setPoints([]);
+    setSamples([]);
+    
+    // Add first point and update
     manualDist.addPoint(xDist, yDist);
     setPoints(manualDist.getPoints());
+    
+    // Save this point for interpolation
+    lastPointRef.current = [xDist, yDist];
   };
   
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
+    if (!isDrawing || !lastPointRef.current) return;
     
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -133,30 +163,78 @@ const ManualDrawing: React.FC = () => {
     
     // Convert to distribution space
     const xDist = -3 + x * 6; // Map [0,1] to [-3,3]
-    const yDist = y;
+    const yDist = Math.max(0, y); // Ensure y is non-negative
     
-    // Add point and update
-    manualDist.addPoint(xDist, yDist);
+    const lastPoint = lastPointRef.current;
+    
+    // If points are too close, skip
+    const distance = Math.sqrt(Math.pow(xDist - lastPoint[0], 2) + Math.pow(yDist - lastPoint[1], 2));
+    if (distance < 0.03) return;
+    
+    // Interpolate between last point and current point
+    const interpolated = interpolatePoints(
+      lastPoint, 
+      [xDist, yDist],
+      Math.ceil(distance * smoothingFactor) // More points for smoother curves
+    );
+    
+    // Add interpolated points
+    for (let i = 1; i < interpolated.length; i++) {
+      manualDist.addPoint(interpolated[i][0], interpolated[i][1]);
+    }
+    
     setPoints(manualDist.getPoints());
+    lastPointRef.current = [xDist, yDist];
   };
   
   const handleMouseUp = () => {
+    if (!isDrawing) return;
+    
     setIsDrawing(false);
+    lastPointRef.current = null;
+    
+    // Normalize the distribution
     manualDist.normalize();
     setPoints(manualDist.getPoints());
+    
+    if (points.length < 2) {
+      toast({
+        title: "Drawing incomplete",
+        description: "Please draw more points to create a valid distribution.",
+        variant: "destructive"
+      });
+    }
   };
 
   const generateSamples = () => {
-    if (points.length < 2) return;
+    if (points.length < 2) {
+      toast({
+        title: "Drawing incomplete",
+        description: "Please draw a complete distribution curve first.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     const newSamples = Array.from({ length: sampleSize }, () => manualDist.sample());
     setSamples(newSamples);
+    
+    toast({
+      title: "Samples generated",
+      description: `Generated ${sampleSize} samples from your custom distribution.`
+    });
   };
 
   const clearAll = () => {
     manualDist.clearPoints();
     setPoints([]);
     setSamples([]);
+    lastPointRef.current = null;
+    
+    toast({
+      title: "Canvas cleared",
+      description: "The drawing has been cleared. Start drawing a new distribution."
+    });
   };
 
   return (
@@ -218,6 +296,21 @@ const ManualDrawing: React.FC = () => {
               </div>
               
               <div className="space-y-2">
+                <Label htmlFor="smoothing">Smoothing Factor</Label>
+                <Slider
+                  id="smoothing"
+                  min={1}
+                  max={20}
+                  step={1}
+                  value={[smoothingFactor]}
+                  onValueChange={(value) => setSmoothingFactor(value[0])}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Higher values create smoother curves
+                </p>
+              </div>
+              
+              <div className="space-y-2">
                 <h3 className="font-medium">Instructions:</h3>
                 <ul className="list-disc pl-5 space-y-1 text-sm">
                   <li>Click and drag to draw your probability density function</li>
@@ -232,9 +325,9 @@ const ManualDrawing: React.FC = () => {
                   <h3 className="font-medium mb-2">Sample Statistics:</h3>
                   <div className="text-sm">
                     <p>Sample Size: {samples.length}</p>
-                    <p>Mean: {samples.reduce((a, b) => a + b, 0) / samples.length}</p>
-                    <p>Min: {Math.min(...samples)}</p>
-                    <p>Max: {Math.max(...samples)}</p>
+                    <p>Mean: {(samples.reduce((a, b) => a + b, 0) / samples.length).toFixed(4)}</p>
+                    <p>Min: {Math.min(...samples).toFixed(4)}</p>
+                    <p>Max: {Math.max(...samples).toFixed(4)}</p>
                   </div>
                 </div>
               )}

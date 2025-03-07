@@ -17,6 +17,14 @@ export const distributions: DistributionMap = {
   beta: continuous.beta,
   gamma: continuous.gamma,
   weibull: continuous.weibull,
+  pareto: continuous.pareto,
+  laplace: continuous.laplace,
+  rayleigh: continuous.rayleigh,
+  maxwellBoltzmann: continuous.maxwellBoltzmann,
+  gumbel: continuous.gumbel,
+  logistic: continuous.logistic,
+  chi: continuous.chi,
+  inverseGaussian: continuous.inverseGaussian,
   
   // Discrete distributions
   bernoulli: discrete.bernoulli,
@@ -24,6 +32,10 @@ export const distributions: DistributionMap = {
   poisson: discrete.poisson,
   geometric: discrete.geometric,
   negativeBinomial: discrete.negativeBinomial,
+  hypergeometric: discrete.hypergeometric,
+  logarithmic: discrete.logarithmic,
+  zipf: discrete.zipf,
+  discreteUniform: discrete.discreteUniform,
   
   // Sampling distributions
   chiSquared: sampling.chiSquared,
@@ -48,8 +60,8 @@ export interface ManualDrawnDistribution {
 
 export class ManualDistribution {
   private points: [number, number][] = [];
-  private min: number = 0;
-  private max: number = 1;
+  private min: number = -3;
+  private max: number = 3;
   private normalized: boolean = false;
   
   constructor(initialPoints?: [number, number][]) {
