@@ -117,6 +117,6 @@ export const SimulationProvider: React.FC<{children: React.ReactNode}> = ({ chil
       generateSamples
     }}>
       {children}
-    </SimulationProvider>
+    </SimulationContext.Provider>
   );
 };
