@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import DistributionControls from '@/components/DistributionControls';
 import { useToast } from "@/components/ui/use-toast";
+import { DistributionParam } from '@/lib/distributions/types';
 
 type DistributionType = keyof typeof distributions;
 
@@ -40,7 +41,8 @@ const CLTSampler = () => {
     
     if (currentDist.params) {
       Object.entries(currentDist.params).forEach(([key, config]) => {
-        defaultParams[key] = config.default;
+        const paramConfig = config as DistributionParam;
+        defaultParams[key] = paramConfig.default;
       });
     }
     
@@ -62,20 +64,30 @@ const CLTSampler = () => {
     if (populationData.length === 0) return [];
     
     const bins = calculateBins(populationData);
-    return bins.map(bin => ({
-      x: bin.midpoint,
-      frequency: bin.frequency,
-    }));
+    return bins.breaks.map((breakpoint, index) => {
+      if (index < bins.counts.length) {
+        return {
+          x: (breakpoint + (bins.breaks[index + 1] || breakpoint)) / 2,
+          frequency: bins.counts[index],
+        };
+      }
+      return null;
+    }).filter(Boolean);
   }, [populationData]);
   
   const sampleChartData = useMemo(() => {
     if (sampleMeans.length === 0) return [];
     
     const bins = calculateBins(sampleMeans);
-    return bins.map(bin => ({
-      x: bin.midpoint,
-      frequency: bin.frequency,
-    }));
+    return bins.breaks.map((breakpoint, index) => {
+      if (index < bins.counts.length) {
+        return {
+          x: (breakpoint + (bins.breaks[index + 1] || breakpoint)) / 2,
+          frequency: bins.counts[index],
+        };
+      }
+      return null;
+    }).filter(Boolean);
   }, [sampleMeans]);
   
   // Generate population data from selected distribution

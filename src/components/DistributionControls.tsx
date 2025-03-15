@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ManualDistributionDrawer from './ManualDistributionDrawer';
 import { ManualDistribution } from '@/lib/distributions';
+import { DistributionParam } from '@/lib/distributions/types';
 
 type DistributionType = keyof typeof distributions;
 
@@ -54,7 +55,7 @@ const DistributionControls: React.FC<DistributionControlsProps> = ({
     <div className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="distribution">Distribution</Label>
-        <Select value={distribution} onValueChange={value => onDistributionChange(value as DistributionType)}>
+        <Select value={distribution} onValueChange={(value) => onDistributionChange(value as DistributionType)}>
           <SelectTrigger id="distribution">
             <SelectValue placeholder="Select a distribution" />
           </SelectTrigger>
@@ -63,7 +64,7 @@ const DistributionControls: React.FC<DistributionControlsProps> = ({
               {continuousDists.length > 0 && (
                 <>
                   <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">Continuous</div>
-                  {continuousDists.map(key => (
+                  {continuousDists.map((key) => (
                     <SelectItem key={key} value={key}>{distributions[key].name}</SelectItem>
                   ))}
                 </>
@@ -72,7 +73,7 @@ const DistributionControls: React.FC<DistributionControlsProps> = ({
               {discreteDists.length > 0 && (
                 <>
                   <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">Discrete</div>
-                  {discreteDists.map(key => (
+                  {discreteDists.map((key) => (
                     <SelectItem key={key} value={key}>{distributions[key].name}</SelectItem>
                   ))}
                 </>
@@ -81,7 +82,7 @@ const DistributionControls: React.FC<DistributionControlsProps> = ({
               {samplingDists.length > 0 && (
                 <>
                   <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">Sampling</div>
-                  {samplingDists.map(key => (
+                  {samplingDists.map((key) => (
                     <SelectItem key={key} value={key}>{distributions[key].name}</SelectItem>
                   ))}
                 </>
@@ -90,7 +91,7 @@ const DistributionControls: React.FC<DistributionControlsProps> = ({
               {multivariateDists.length > 0 && (
                 <>
                   <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">Multivariate</div>
-                  {multivariateDists.map(key => (
+                  {multivariateDists.map((key) => (
                     <SelectItem key={key} value={key}>{distributions[key].name}</SelectItem>
                   ))}
                 </>
@@ -111,22 +112,25 @@ const DistributionControls: React.FC<DistributionControlsProps> = ({
             <AccordionTrigger>Distribution Settings</AccordionTrigger>
             <AccordionContent>
               <div className="space-y-4">
-                {Object.entries(currentDistParams).map(([key, config]) => (
-                  <div key={key} className="space-y-2">
-                    <Label htmlFor={key}>
-                      {config.name} {config.description && `(${config.description})`}
-                    </Label>
-                    <Input
-                      id={key}
-                      type="number"
-                      value={params[key] !== undefined ? params[key] : config.default}
-                      onChange={(e) => handleParamChange(key, parseFloat(e.target.value))}
-                      min={config.min}
-                      max={config.max}
-                      step={config.step || 0.1}
-                    />
-                  </div>
-                ))}
+                {Object.entries(currentDistParams).map(([key, config]) => {
+                  const paramConfig = config as DistributionParam;
+                  return (
+                    <div key={key} className="space-y-2">
+                      <Label htmlFor={key}>
+                        {paramConfig.name} {paramConfig.description && `(${paramConfig.description})`}
+                      </Label>
+                      <Input
+                        id={key}
+                        type="number"
+                        value={params[key] !== undefined ? params[key] : paramConfig.default}
+                        onChange={(e) => handleParamChange(key, parseFloat(e.target.value))}
+                        min={paramConfig.min}
+                        max={paramConfig.max}
+                        step={paramConfig.step || 0.1}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </AccordionContent>
           </AccordionItem>
