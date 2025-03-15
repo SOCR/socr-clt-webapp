@@ -55,7 +55,7 @@ const DistributionControls: React.FC<DistributionControlsProps> = ({
     <div className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="distribution">Distribution</Label>
-        <Select value={distribution} onValueChange={(value) => onDistributionChange(value as DistributionType)}>
+        <Select value={distribution} onValueChange={(value: string) => onDistributionChange(value as DistributionType)}>
           <SelectTrigger id="distribution">
             <SelectValue placeholder="Select a distribution" />
           </SelectTrigger>
