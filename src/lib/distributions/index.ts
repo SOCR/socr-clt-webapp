@@ -45,7 +45,37 @@ export const distributions: DistributionMap = {
   // Multivariate distributions
   multivariateNormal: multivariate.multivariateNormal,
   dirichlet: multivariate.dirichlet,
-  wishart: multivariate.wishart
+  wishart: multivariate.wishart,
+  
+  // Manual drawing distribution
+  manual: {
+    name: "Manual",
+    category: "continuous",
+    generate: (params: { distribution: ManualDistribution }) => {
+      return params.distribution.sample();
+    },
+    pdf: (x: number, params: { distribution: ManualDistribution }) => {
+      // Find the PDF value at x through linear interpolation
+      const points = params.distribution.getPoints();
+      if (points.length < 2) return 0;
+      
+      // Check if x is within the range
+      if (x < points[0][0] || x > points[points.length - 1][0]) return 0;
+      
+      // Find the y value at x through linear interpolation
+      for (let i = 0; i < points.length - 1; i++) {
+        const [x1, y1] = points[i];
+        const [x2, y2] = points[i + 1];
+        
+        if (x >= x1 && x <= x2) {
+          // Linear interpolation
+          return y1 + (y2 - y1) * (x - x1) / (x2 - x1);
+        }
+      }
+      
+      return 0;
+    }
+  }
 };
 
 // Re-export types
