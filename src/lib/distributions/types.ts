@@ -5,16 +5,6 @@ export interface Distribution {
   category: DistributionCategory;
   generate: (params: any) => number;
   pdf?: (x: number, params: any) => number;
-  params?: Record<string, DistributionParam>;
-}
-
-export interface DistributionParam {
-  name: string;
-  description?: string;
-  default: number;
-  min?: number;
-  max?: number;
-  step?: number;
 }
 
 export type DistributionCategory = 
