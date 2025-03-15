@@ -1,4 +1,3 @@
-
 import { DistributionMap } from './types';
 import * as continuous from './continuous';
 import * as discrete from './discrete';
@@ -52,11 +51,16 @@ export const distributions: DistributionMap = {
     name: "Manual",
     category: "continuous",
     generate: (params: { distribution: ManualDistribution }) => {
-      return params.distribution.sample();
+      // Create a default manual distribution if none is provided
+      const dist = params.distribution || new ManualDistribution();
+      return dist.sample();
     },
     pdf: (x: number, params: { distribution: ManualDistribution }) => {
+      // Create a default manual distribution if none is provided
+      const dist = params.distribution || new ManualDistribution();
+      
       // Find the PDF value at x through linear interpolation
-      const points = params.distribution.getPoints();
+      const points = dist.getPoints();
       if (points.length < 2) return 0;
       
       // Check if x is within the range
@@ -77,6 +81,9 @@ export const distributions: DistributionMap = {
     }
   }
 };
+
+// Remove the "manualDistribution" entry to avoid duplication
+delete (distributions as any).manualDistribution;
 
 // Re-export types
 export * from './types';
@@ -99,6 +106,13 @@ export class ManualDistribution {
       this.points = [...initialPoints];
       this.min = Math.min(...initialPoints.map(p => p[0]));
       this.max = Math.max(...initialPoints.map(p => p[0]));
+    } else {
+      // Add default points for a uniform-like distribution if none provided
+      this.addPoint(-3, 0.2);
+      this.addPoint(-1, 0.2);
+      this.addPoint(1, 0.2);
+      this.addPoint(3, 0.2);
+      this.normalize();
     }
   }
   
