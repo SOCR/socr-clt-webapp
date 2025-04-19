@@ -50,7 +50,7 @@ const DistributionControls: React.FC<DistributionControlsProps> = ({
   };
 
   // Special cases for specific distributions
-  if (selectedDistribution.name === "normal") {
+  if (selectedDistribution.name === "Normal Distribution") {
     return (
       <div className="space-y-4">
         <div className="space-y-2">
@@ -75,7 +75,7 @@ const DistributionControls: React.FC<DistributionControlsProps> = ({
     );
   }
 
-  if (selectedDistribution.name === "uniform") {
+  if (selectedDistribution.name === "Uniform Distribution") {
     return (
       <div className="space-y-4">
         <div className="space-y-2">
@@ -100,7 +100,7 @@ const DistributionControls: React.FC<DistributionControlsProps> = ({
     );
   }
 
-  if (selectedDistribution.name === "exponential") {
+  if (selectedDistribution.name === "Exponential Distribution") {
     return (
       <div className="space-y-4">
         <div className="space-y-2">

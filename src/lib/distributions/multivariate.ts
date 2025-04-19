@@ -9,10 +9,29 @@ export const multivariateNormal: Distribution = {
   generate: (params) => {
     // For simplicity, we'll just generate a 2D point and return its magnitude
     // In a real implementation, this would return a vector
-    const { mean, sd } = params;
+    const mean = params.mean !== undefined ? params.mean : 0;
+    const sd = params.sd !== undefined ? params.sd : 1;
     const x = normal.generate({ mean, sd });
     const y = normal.generate({ mean, sd });
     return Math.sqrt(x*x + y*y); // Return magnitude as a scalar
+  },
+  params: {
+    mean: {
+      name: "Mean",
+      description: "Mean of each dimension",
+      default: 0,
+      min: -10,
+      max: 10,
+      step: 0.1
+    },
+    sd: {
+      name: "Standard Deviation",
+      description: "Standard deviation of each dimension",
+      default: 1,
+      min: 0.1,
+      max: 10,
+      step: 0.1
+    }
   }
 };
 
@@ -22,7 +41,7 @@ export const dirichlet: Distribution = {
   category: "multivariate",
   generate: (params) => {
     // Simplified for educational purposes - returns just the first component
-    const { alpha } = params;
+    const alpha = params.alpha || [1, 1];
     if (!Array.isArray(alpha) || alpha.length < 2) {
       return 0.5; // Default for invalid params
     }
@@ -54,6 +73,16 @@ export const dirichlet: Distribution = {
     const normalized = samples.map(s => s / sum);
     
     return normalized[0]; // Return first component for simplicity
+  },
+  params: {
+    alpha: {
+      name: "Alpha",
+      description: "Concentration parameters (using default value [1,1])",
+      default: 1,
+      min: 0.1,
+      max: 10,
+      step: 0.1
+    }
   }
 };
 
@@ -63,7 +92,8 @@ export const wishart: Distribution = {
   category: "multivariate",
   generate: (params) => {
     // Very simplified implementation for educational purposes
-    const { df, scale } = params;
+    const df = params.df || 3;
+    const scale = params.scale || 1;
     // Just return a scalar approximation for demonstration
     let sum = 0;
     for (let i = 0; i < df; i++) {
@@ -71,5 +101,23 @@ export const wishart: Distribution = {
       sum += x * x;
     }
     return sum;
+  },
+  params: {
+    df: {
+      name: "Degrees of Freedom",
+      description: "Degrees of freedom parameter",
+      default: 3,
+      min: 1,
+      max: 20,
+      step: 1
+    },
+    scale: {
+      name: "Scale",
+      description: "Scale parameter",
+      default: 1,
+      min: 0.1,
+      max: 10,
+      step: 0.1
+    }
   }
 };

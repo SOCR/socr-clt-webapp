@@ -51,10 +51,15 @@ export const distributions: DistributionMap = {
   manual: {
     name: "Manual",
     category: "continuous",
-    generate: (params: { distribution: ManualDistribution }) => {
+    generate: (params: { distribution?: ManualDistribution }) => {
+      if (!params.distribution) {
+        return 0; // Return a default value if no distribution is provided
+      }
       return params.distribution.sample();
     },
-    pdf: (x: number, params: { distribution: ManualDistribution }) => {
+    pdf: (x: number, params: { distribution?: ManualDistribution }) => {
+      if (!params.distribution) return 0;
+      
       // Find the PDF value at x through linear interpolation
       const points = params.distribution.getPoints();
       if (points.length < 2) return 0;
