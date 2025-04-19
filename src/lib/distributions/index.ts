@@ -60,5 +60,6 @@ export { ManualDistribution } from './manual';
 export { 
   calculateMean, calculateVariance, calculateSD,
   calculateMedian, calculateSkewness, calculateKurtosis,
-  calculateRange, calculateIQR, calculateBins
+  calculateRange, calculateIQR, calculateBins,
+  calculateKSStatistic, calculateKLDivergence
 } from '../statistics';
