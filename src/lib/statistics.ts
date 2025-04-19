@@ -1,4 +1,3 @@
-
 // Calculate mean of an array
 export const calculateMean = (data: number[]): number => {
   if (data.length === 0) return 0;
@@ -123,6 +122,27 @@ export const calculateBins = (data: number[], customBins?: number): { breaks: nu
   return { breaks, counts };
 };
 
+// Approximation of the error function (erf) since it's not natively available in JavaScript
+function erf(x: number): number {
+  // Constants for approximation
+  const a1 =  0.254829592;
+  const a2 = -0.284496736;
+  const a3 =  1.421413741;
+  const a4 = -1.453152027;
+  const a5 =  1.061405429;
+  const p  =  0.3275911;
+
+  // Save the sign of x
+  const sign = x < 0 ? -1 : 1;
+  x = Math.abs(x);
+
+  // Approximation formula
+  const t = 1.0 / (1.0 + p * x);
+  const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+  
+  return sign * y;
+}
+
 // New Function: Calculate Kolmogorov-Smirnov statistic against normal distribution
 export const calculateKSStatistic = (data: number[]): number => {
   if (data.length < 3) return 0;
@@ -146,7 +166,7 @@ export const calculateKSStatistic = (data: number[]): number => {
     
     // Theoretical CDF (normal distribution)
     const z = (sortedData[i] - mean) / sd;
-    const theoreticalCDF = 0.5 * (1 + Math.erf(z / Math.sqrt(2)));
+    const theoreticalCDF = 0.5 * (1 + erf(z / Math.sqrt(2)));
     
     // Calculate difference and update max if needed
     const difference = Math.abs(empiricalCDF - theoreticalCDF);

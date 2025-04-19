@@ -5,6 +5,7 @@ export interface Distribution {
   category: DistributionCategory;
   generate: (params: any) => number;
   pdf?: (x: number, params: any) => number;
+  cdf?: (x: number, params: any) => number;
   params?: {
     [key: string]: DistributionParam;
   };

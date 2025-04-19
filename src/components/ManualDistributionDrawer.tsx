@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { ManualDistribution } from '@/lib/distributions/manual';
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/components/ui/use-toast";
