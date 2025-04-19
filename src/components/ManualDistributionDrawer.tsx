@@ -2,20 +2,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { ManualDistribution } from '@/lib/distributions';
+import { ManualDistribution } from '@/lib/distributions/manual';
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/components/ui/use-toast";
 
 interface ManualDistributionDrawerProps {
-  manualDist: ManualDistribution;
-  onDistributionChange: (distribution: ManualDistribution) => void;
+  distribution: ManualDistribution;
+  onDistributionChange: (dist: ManualDistribution) => void;
 }
 
 const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({ 
-  manualDist, 
+  distribution, 
   onDistributionChange 
 }) => {
-  const [points, setPoints] = useState<[number, number][]>([]);
   const [smoothingFactor, setSmoothingFactor] = useState(5);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -23,6 +22,7 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
   const [canvasHeight, setCanvasHeight] = useState(300);
   const lastPointRef = useRef<[number, number] | null>(null);
   const { toast } = useToast();
+  const [points, setPoints] = useState<[number, number][]>(distribution.getPoints());
 
   // Resize canvas based on container
   useEffect(() => {
@@ -31,7 +31,6 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
         const parent = canvasRef.current.parentElement;
         if (parent) {
           setCanvasWidth(parent.clientWidth);
-          setCanvasHeight(300); // Fixed height
         }
       }
     };
@@ -66,6 +65,28 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     ctx.lineTo(0, canvas.height);
     ctx.stroke();
     
+    // Draw grid lines
+    ctx.beginPath();
+    ctx.strokeStyle = '#eee';
+    ctx.setLineDash([2, 2]);
+    
+    // Vertical grid lines
+    for (let i = 1; i <= 10; i++) {
+      const x = (i / 10) * canvas.width;
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+    }
+    
+    // Horizontal grid lines
+    for (let i = 1; i <= 5; i++) {
+      const y = (i / 5) * canvas.height * 0.8;
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+    }
+    
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
     // Draw curve
     if (points.length > 1) {
       ctx.beginPath();
@@ -74,7 +95,7 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
       
       // Convert data points to canvas coordinates
       const scaledPoints = points.map(([x, y]) => [
-        (x - -3) / (3 - -3) * canvas.width, 
+        (x - -5) / 10 * canvas.width, 
         y * (canvas.height * 0.8)
       ]);
       
@@ -94,9 +115,20 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     }
     
     ctx.restore();
+    
+    // Add x-axis labels
+    ctx.fillStyle = '#666';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    
+    for (let i = -5; i <= 5; i++) {
+      const x = ((i + 5) / 10) * canvas.width;
+      ctx.fillText(i.toString(), x, canvas.height - 2);
+    }
+    
   }, [points]);
 
-  // Interpolate between two points using linear interpolation
+  // Interpolate between two points
   const interpolatePoints = (
     start: [number, number], 
     end: [number, number], 
@@ -114,7 +146,7 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     return interpolated;
   };
 
-  // Handle mouse/touch events for drawing
+  // Handle mouse events for drawing
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDrawing(true);
     
@@ -126,16 +158,15 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     const y = 1 - (e.clientY - rect.top) / canvas.height;
     
     // Convert to distribution space
-    const xDist = -3 + x * 6; // Map [0,1] to [-3,3]
+    const xDist = -5 + x * 10; // Map [0,1] to [-5,5]
     const yDist = Math.max(0, y); // Ensure y is non-negative
     
-    // Reset the manual distribution
-    manualDist.clearPoints();
-    setPoints([]);
+    // Reset the distribution
+    distribution.clearPoints();
     
     // Add first point and update
-    manualDist.addPoint(xDist, yDist);
-    setPoints(manualDist.getPoints());
+    distribution.addPoint(xDist, yDist);
+    setPoints(distribution.getPoints());
     
     // Save this point for interpolation
     lastPointRef.current = [xDist, yDist];
@@ -152,7 +183,7 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     const y = 1 - (e.clientY - rect.top) / canvas.height;
     
     // Convert to distribution space
-    const xDist = -3 + x * 6; // Map [0,1] to [-3,3]
+    const xDist = -5 + x * 10; // Map [0,1] to [-5,5]
     const yDist = Math.max(0, y); // Ensure y is non-negative
     
     const lastPoint = lastPointRef.current;
@@ -170,10 +201,10 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     
     // Add interpolated points
     for (let i = 1; i < interpolated.length; i++) {
-      manualDist.addPoint(interpolated[i][0], interpolated[i][1]);
+      distribution.addPoint(interpolated[i][0], interpolated[i][1]);
     }
     
-    setPoints(manualDist.getPoints());
+    setPoints(distribution.getPoints());
     lastPointRef.current = [xDist, yDist];
   };
   
@@ -184,8 +215,8 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     lastPointRef.current = null;
     
     // Normalize the distribution
-    manualDist.normalize();
-    setPoints(manualDist.getPoints());
+    distribution.normalize();
+    setPoints(distribution.getPoints());
     
     if (points.length < 2) {
       toast({
@@ -194,18 +225,25 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
         variant: "destructive"
       });
     } else {
-      onDistributionChange(manualDist);
+      onDistributionChange(distribution);
+      
+      const stats = distribution.getStats();
+      toast({
+        title: "Distribution updated",
+        description: `Mean: ${stats.mean.toFixed(2)}, Variance: ${stats.variance.toFixed(2)}`
+      });
     }
   };
 
   const clearCanvas = () => {
-    manualDist.clearPoints();
+    distribution.clearPoints();
     setPoints([]);
     lastPointRef.current = null;
+    onDistributionChange(distribution);
     
     toast({
       title: "Canvas cleared",
-      description: "The drawing has been cleared. Start drawing a new distribution."
+      description: "The drawing has been cleared. Draw a new distribution."
     });
   };
 

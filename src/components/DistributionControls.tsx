@@ -1,9 +1,9 @@
 
 import React from "react";
-import { Distribution, DistributionParam } from "@/lib/distributions";
+import { Distribution, DistributionParam } from "@/lib/distributions/types";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ManualDistribution } from "@/lib/distributions";
+import { ManualDistribution } from "@/lib/distributions/manual";
 import ManualDistributionDrawer from "@/components/ManualDistributionDrawer";
 
 interface DistributionControlsProps {
@@ -32,12 +32,13 @@ const DistributionControls: React.FC<DistributionControlsProps> = ({
     return isNaN(parsed) ? 0 : parsed;
   };
 
-  if (selectedDistribution.name === "Manual") {
+  // Check if this is the manual distribution
+  if (selectedDistribution.name === "Manual Distribution") {
     return (
       <div className="space-y-4">
         <h3 className="text-lg font-medium">Manual Distribution</h3>
         <ManualDistributionDrawer
-          manualDist={manualDist}
+          distribution={manualDist}
           onDistributionChange={onManualDistChange}
         />
       </div>
