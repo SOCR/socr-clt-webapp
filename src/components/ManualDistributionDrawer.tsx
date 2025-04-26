@@ -204,7 +204,7 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     const barWidth = canvas.width / numBins;
     
     for (let i = 0; i < numBins; i++) {
-      const barHeight = bins[i] / maxBinCount * canvas.height * 0.8;
+      const barHeight = (maxBinCount > 0) ? (bins[i] / maxBinCount * canvas.height * 0.8) : 0;
       const x = i * barWidth;
       
       ctx.fillStyle = 'rgba(59, 130, 246, 0.6)';
@@ -222,24 +222,26 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
       
       // Get 100 points from the PDF
       const pdfPoints = Array.from({ length: 100 }, (_, i) => {
-        const x = min + (i / 100) * (max - min);
+        const x = min + (i / 99) * (max - min);
         const y = distribution.pdf(x);
         return [x, y];
       });
       
       // Scale to fit canvas
       const maxPdf = Math.max(...pdfPoints.map(p => p[1]));
-      const scaledPoints = pdfPoints.map(([x, y]) => [
-        (x - min) / (max - min) * canvas.width,
-        y / maxPdf * canvas.height * 0.8
-      ]);
-      
-      ctx.moveTo(scaledPoints[0][0], scaledPoints[0][1]);
-      for (let i = 1; i < scaledPoints.length; i++) {
-        ctx.lineTo(scaledPoints[i][0], scaledPoints[i][1]);
+      if (maxPdf > 0) {
+        const scaledPoints = pdfPoints.map(([x, y]) => [
+          (x - min) / (max - min) * canvas.width,
+          y / maxPdf * canvas.height * 0.8
+        ]);
+        
+        ctx.moveTo(scaledPoints[0][0], scaledPoints[0][1]);
+        for (let i = 1; i < scaledPoints.length; i++) {
+          ctx.lineTo(scaledPoints[i][0], scaledPoints[i][1]);
+        }
+        
+        ctx.stroke();
       }
-      
-      ctx.stroke();
     }
     
     ctx.restore();
@@ -391,61 +393,80 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
       return;
     }
     
-    const newSamples = distribution.generateSamples(sampleCount);
-    setSamples(newSamples);
-    
-    toast({
-      title: "Samples generated",
-      description: `Generated ${sampleCount} samples from your distribution`
-    });
+    try {
+      const newSamples = distribution.generateSamples(sampleCount);
+      setSamples(newSamples);
+      
+      toast({
+        title: "Samples generated",
+        description: `Generated ${sampleCount} samples from your distribution`
+      });
+    } catch (error) {
+      console.error("Error generating samples:", error);
+      toast({
+        title: "Error generating samples",
+        description: "Failed to generate samples from your distribution",
+        variant: "destructive"
+      });
+    }
   };
   
   // Calculate statistics for the samples
   const getSampleStats = () => {
     if (samples.length === 0) return null;
     
-    const mean = calculateMean(samples);
-    const variance = calculateVariance(samples);
-    const sd = calculateSD(samples);
-    const skewness = calculateSkewness(samples);
-    const kurtosis = calculateKurtosis(samples);
-    const ksStatistic = calculateKSStatistic(samples);
-    const klDivergence = calculateKLDivergence(samples);
-    
-    return {
-      mean,
-      variance,
-      sd,
-      skewness,
-      kurtosis,
-      ksStatistic,
-      klDivergence
-    };
+    try {
+      const mean = calculateMean(samples);
+      const variance = calculateVariance(samples);
+      const sd = calculateSD(samples);
+      const skewness = calculateSkewness(samples);
+      const kurtosis = calculateKurtosis(samples);
+      const ksStatistic = calculateKSStatistic(samples);
+      const klDivergence = calculateKLDivergence(samples);
+      
+      return {
+        mean,
+        variance,
+        sd,
+        skewness,
+        kurtosis,
+        ksStatistic,
+        klDivergence
+      };
+    } catch (error) {
+      console.error("Error calculating sample statistics:", error);
+      return null;
+    }
   };
   
   // Get statistics from theoretical distribution
   const getTheoreticalStats = () => {
     if (points.length < 2) return null;
     
-    // For theoretical stats, we'll generate a large sample and calculate from that
-    const theoreticalSamples = distribution.generateSamples(5000);
-    const mean = calculateMean(theoreticalSamples);
-    const variance = calculateVariance(theoreticalSamples);
-    const sd = calculateSD(theoreticalSamples);
-    const skewness = calculateSkewness(theoreticalSamples);
-    const kurtosis = calculateKurtosis(theoreticalSamples);
-    const ksStatistic = calculateKSStatistic(theoreticalSamples);
-    const klDivergence = calculateKLDivergence(theoreticalSamples);
-    
-    return {
-      mean,
-      variance,
-      sd,
-      skewness,
-      kurtosis,
-      ksStatistic,
-      klDivergence
-    };
+    try {
+      // For theoretical stats, we'll generate a large sample and calculate from that
+      const theoreticalSamples = distribution.generateSamples(5000);
+      const mean = calculateMean(theoreticalSamples);
+      const variance = calculateVariance(theoreticalSamples);
+      const sd = calculateSD(theoreticalSamples);
+      const skewness = calculateSkewness(theoreticalSamples);
+      const kurtosis = calculateKurtosis(theoreticalSamples);
+      const ksStatistic = calculateKSStatistic(theoreticalSamples);
+      const klDivergence = calculateKLDivergence(theoreticalSamples);
+      
+      return {
+        mean,
+        variance,
+        sd,
+        skewness,
+        kurtosis,
+        ksStatistic,
+        klDivergence
+      };
+    } catch (error) {
+      console.error("Error calculating theoretical statistics:", error);
+      return null;
+    }
   };
   
   const sampleStats = getSampleStats();
@@ -557,11 +578,11 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
                     <TableCell>{sampleStats.kurtosis.toFixed(4)}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell>K-S Statistic (vs Normal)</TableCell>
+                    <TableCell>Kolmogorov-Smirnov</TableCell>
                     <TableCell>{sampleStats.ksStatistic.toFixed(4)}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell>KL Divergence (vs Normal)</TableCell>
+                    <TableCell>KL Divergence</TableCell>
                     <TableCell>{sampleStats.klDivergence.toFixed(4)}</TableCell>
                   </TableRow>
                 </TableBody>
@@ -596,11 +617,11 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
                       <TableCell>{theoreticalStats.kurtosis.toFixed(4)}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>K-S Statistic (vs Normal)</TableCell>
+                      <TableCell>Kolmogorov-Smirnov</TableCell>
                       <TableCell>{theoreticalStats.ksStatistic.toFixed(4)}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>KL Divergence (vs Normal)</TableCell>
+                      <TableCell>KL Divergence</TableCell>
                       <TableCell>{theoreticalStats.klDivergence.toFixed(4)}</TableCell>
                     </TableRow>
                   </TableBody>

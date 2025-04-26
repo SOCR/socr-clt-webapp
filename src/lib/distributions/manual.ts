@@ -80,6 +80,45 @@ export class ManualDistribution {
     return 0;
   }
   
+  // Calculate CDF value at a given point
+  cdf(x: number): number {
+    const sortedPoints = this.getPoints();
+    if (sortedPoints.length < 2) return 0;
+    
+    // If x is less than the minimum point, CDF is 0
+    if (x < sortedPoints[0][0]) return 0;
+    
+    // If x is greater than the maximum point, CDF is 1
+    if (x > sortedPoints[sortedPoints.length - 1][0]) return 1;
+    
+    // Compute CDF by integrating the PDF from min to x
+    let cdf = 0;
+    let prevX = sortedPoints[0][0];
+    let prevY = sortedPoints[0][1];
+    
+    // Find the appropriate interval for x
+    let i = 1;
+    while (i < sortedPoints.length && sortedPoints[i][0] <= x) {
+      const currentX = sortedPoints[i][0];
+      const currentY = sortedPoints[i][1];
+      
+      // Add area of trapezoid
+      cdf += (currentX - prevX) * (prevY + currentY) / 2;
+      
+      prevX = currentX;
+      prevY = currentY;
+      i++;
+    }
+    
+    // Add final segment if needed
+    if (x > prevX && i < sortedPoints.length) {
+      const currentY = this.pdf(x);
+      cdf += (x - prevX) * (prevY + currentY) / 2;
+    }
+    
+    return cdf;
+  }
+  
   // Generate histogram data for visualization
   getHistogramData(bins: number = 50): { x: number, y: number }[] {
     if (this.points.length < 2) return [];
@@ -112,7 +151,7 @@ export class ManualDistribution {
     const sortedPoints = this.getPoints();
     const maxY = Math.max(...sortedPoints.map(p => p[1]));
     
-    // Rejection sampling
+    // Rejection sampling with safety counter
     for (let attempts = 0; attempts < 100; attempts++) {
       // Generate a random x within the range
       const x = this.min + Math.random() * (this.max - this.min);
@@ -127,6 +166,18 @@ export class ManualDistribution {
     }
     
     // Fallback if rejection sampling fails after many attempts
+    // Use inverse transform sampling as a backup method
+    const u = Math.random();
+    const sortedX = sortedPoints.map(p => p[0]);
+    
+    // Find x where CDF(x) >= u
+    for (let i = 0; i < sortedX.length; i++) {
+      if (this.cdf(sortedX[i]) >= u) {
+        return sortedX[i];
+      }
+    }
+    
+    // If all else fails, return a point from the middle
     const middlePoint = Math.floor(sortedPoints.length / 2);
     return sortedPoints[middlePoint][0];
   }
@@ -201,45 +252,7 @@ export const manualDistribution: Distribution = {
     if (!params.distribution || !(params.distribution instanceof ManualDistribution)) {
       return 0;
     }
-    
-    // Approximate CDF through numerical integration of PDF
-    const dist = params.distribution;
-    const sortedPoints = dist.getPoints();
-    
-    if (sortedPoints.length < 2) return 0;
-    
-    // If x is less than the minimum point, CDF is 0
-    if (x < sortedPoints[0][0]) return 0;
-    
-    // If x is greater than the maximum point, CDF is 1
-    if (x > sortedPoints[sortedPoints.length - 1][0]) return 1;
-    
-    // Compute CDF by integrating the PDF from min to x
-    let cdf = 0;
-    let prevX = sortedPoints[0][0];
-    let prevY = dist.pdf(prevX);
-    
-    // Find the appropriate interval for x
-    let i = 1;
-    while (i < sortedPoints.length && sortedPoints[i][0] < x) {
-      const currentX = sortedPoints[i][0];
-      const currentY = sortedPoints[i][1];
-      
-      // Add area of trapezoid
-      cdf += (currentX - prevX) * (prevY + currentY) / 2;
-      
-      prevX = currentX;
-      prevY = currentY;
-      i++;
-    }
-    
-    // Add final segment if needed
-    if (x > prevX) {
-      const currentY = dist.pdf(x);
-      cdf += (x - prevX) * (prevY + currentY) / 2;
-    }
-    
-    return cdf;
+    return params.distribution.cdf(x);
   },
   params: {
     info: {

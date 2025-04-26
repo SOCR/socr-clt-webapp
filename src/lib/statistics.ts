@@ -1,3 +1,4 @@
+
 // Calculate mean of an array
 export const calculateMean = (data: number[]): number => {
   if (data.length === 0) return 0;
@@ -143,79 +144,89 @@ function erf(x: number): number {
   return sign * y;
 }
 
-// New Function: Calculate Kolmogorov-Smirnov statistic against normal distribution
+// Calculate Kolmogorov-Smirnov statistic against normal distribution
 export const calculateKSStatistic = (data: number[]): number => {
   if (data.length < 3) return 0;
   
-  // Sort the data
-  const sortedData = [...data].sort((a, b) => a - b);
-  
-  // Calculate mean and standard deviation for a normal distribution
-  const mean = calculateMean(sortedData);
-  const sd = calculateSD(sortedData);
-  
-  if (sd === 0) return 0;
-  
-  // Calculate empirical CDF
-  const n = sortedData.length;
-  let maxDifference = 0;
-  
-  for (let i = 0; i < n; i++) {
-    // Empirical CDF at this point
-    const empiricalCDF = (i + 1) / n;
+  try {
+    // Sort the data
+    const sortedData = [...data].sort((a, b) => a - b);
     
-    // Theoretical CDF (normal distribution)
-    const z = (sortedData[i] - mean) / sd;
-    const theoreticalCDF = 0.5 * (1 + erf(z / Math.sqrt(2)));
+    // Calculate mean and standard deviation for a normal distribution
+    const mean = calculateMean(sortedData);
+    const sd = calculateSD(sortedData);
     
-    // Calculate difference and update max if needed
-    const difference = Math.abs(empiricalCDF - theoreticalCDF);
-    if (difference > maxDifference) {
-      maxDifference = difference;
+    if (sd === 0) return 0;
+    
+    // Calculate empirical CDF
+    const n = sortedData.length;
+    let maxDifference = 0;
+    
+    for (let i = 0; i < n; i++) {
+      // Empirical CDF at this point
+      const empiricalCDF = (i + 1) / n;
+      
+      // Theoretical CDF (normal distribution)
+      const z = (sortedData[i] - mean) / sd;
+      const theoreticalCDF = 0.5 * (1 + erf(z / Math.sqrt(2)));
+      
+      // Calculate difference and update max if needed
+      const difference = Math.abs(empiricalCDF - theoreticalCDF);
+      if (difference > maxDifference) {
+        maxDifference = difference;
+      }
     }
+    
+    return maxDifference;
+  } catch (error) {
+    console.error("Error calculating KS statistic:", error);
+    return 0;
   }
-  
-  return maxDifference;
 };
 
-// New Function: Calculate Kullback-Leibler divergence against normal distribution
+// Calculate Kullback-Leibler divergence against normal distribution
 export const calculateKLDivergence = (data: number[], bins: number = 20): number => {
   if (data.length < 3) return 0;
   
-  // Calculate histogram for empirical distribution
-  const { breaks, counts } = calculateBins(data, bins);
-  
-  // Calculate mean and standard deviation for the reference normal distribution
-  const mean = calculateMean(data);
-  const sd = calculateSD(data);
-  
-  if (sd === 0) return 0;
-  
-  // Calculate bin width
-  const binWidth = breaks[1] - breaks[0];
-  
-  // Normalize counts to get probabilities (empirical PDF)
-  const totalCount = counts.reduce((sum, count) => sum + count, 0);
-  const empiricalPDF = counts.map(count => count / totalCount / binWidth);
-  
-  // Calculate KL divergence
-  let kl = 0;
-  for (let i = 0; i < breaks.length - 1; i++) {
-    // Skip bins with zero probability in empirical distribution
-    if (empiricalPDF[i] <= 0) continue;
+  try {
+    // Calculate histogram for empirical distribution
+    const { breaks, counts } = calculateBins(data, bins);
     
-    // Center of the bin
-    const binCenter = (breaks[i] + breaks[i + 1]) / 2;
+    // Calculate mean and standard deviation for the reference normal distribution
+    const mean = calculateMean(data);
+    const sd = calculateSD(data);
     
-    // Normal PDF at bin center
-    const z = (binCenter - mean) / sd;
-    const normalPDF = Math.exp(-0.5 * z * z) / (sd * Math.sqrt(2 * Math.PI));
+    if (sd === 0) return 0;
     
-    // Add to KL divergence if normal PDF is positive
-    if (normalPDF > 0) {
-      kl += empiricalPDF[i] * Math.log(empiricalPDF[i] / normalPDF) * binWidth;
+    // Calculate bin width
+    const binWidth = breaks[1] - breaks[0];
+    
+    // Normalize counts to get probabilities (empirical PDF)
+    const totalCount = counts.reduce((sum, count) => sum + count, 0);
+    const empiricalPDF = counts.map(count => count / totalCount / binWidth);
+    
+    // Calculate KL divergence
+    let kl = 0;
+    for (let i = 0; i < breaks.length - 1; i++) {
+      // Skip bins with zero probability in empirical distribution
+      if (empiricalPDF[i] <= 0) continue;
+      
+      // Center of the bin
+      const binCenter = (breaks[i] + breaks[i + 1]) / 2;
+      
+      // Normal PDF at bin center
+      const z = (binCenter - mean) / sd;
+      const normalPDF = Math.exp(-0.5 * z * z) / (sd * Math.sqrt(2 * Math.PI));
+      
+      // Add to KL divergence if normal PDF is positive
+      if (normalPDF > 0) {
+        kl += empiricalPDF[i] * Math.log(empiricalPDF[i] / normalPDF) * binWidth;
+      }
     }
+    
+    return isNaN(kl) ? 0 : kl;
+  } catch (error) {
+    console.error("Error calculating KL divergence:", error);
+    return 0;
   }
-  
-  return kl;
 };
