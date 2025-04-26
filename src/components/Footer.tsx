@@ -1,6 +1,15 @@
 
 import React, { useEffect } from 'react';
 
+// Add window interface augmentation to declare the global variables
+declare global {
+  interface Window {
+    _uacct: string;
+    dataLayer: any[];
+    gtag: (...args: any[]) => void;
+  }
+}
+
 const Footer = () => {
   useEffect(() => {
     // Add StatCounter script
@@ -30,8 +39,8 @@ const Footer = () => {
     // Initialize GA
     window._uacct = "UA-676559-1";
     window.dataLayer = window.dataLayer || [];
-    function gtag() {
-      dataLayer.push(arguments);
+    function gtag(...args: any[]) {
+      window.dataLayer.push(args);
     }
     gtag('js', new Date());
     gtag('config', 'UA-69710121-1');
