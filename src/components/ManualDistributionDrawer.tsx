@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -46,7 +45,6 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
   const lastPointRef = useRef<[number, number] | null>(null);
   const { toast } = useToast();
 
-  // Resize canvas based on container
   useEffect(() => {
     const handleResize = () => {
       if (canvasRef.current) {
@@ -58,11 +56,22 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     };
 
     handleResize();
+    
+    const resizeObserver = new ResizeObserver(handleResize);
+    if (canvasRef.current?.parentElement) {
+      resizeObserver.observe(canvasRef.current.parentElement);
+    }
+    
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    
+    return () => {
+      if (canvasRef.current?.parentElement) {
+        resizeObserver.unobserve(canvasRef.current.parentElement);
+      }
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
-  // Draw the current distribution curve
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -70,15 +79,12 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Set coordinate system where (0,0) is bottom-left
     ctx.save();
     ctx.translate(0, canvas.height);
     ctx.scale(1, -1);
     
-    // Draw axes
     ctx.beginPath();
     ctx.strokeStyle = '#aaa';
     ctx.moveTo(0, 0);
@@ -87,19 +93,16 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     ctx.lineTo(0, canvas.height);
     ctx.stroke();
     
-    // Draw grid lines
     ctx.beginPath();
     ctx.strokeStyle = '#eee';
     ctx.setLineDash([2, 2]);
     
-    // Vertical grid lines
     for (let i = 1; i <= 10; i++) {
       const x = (i / 10) * canvas.width;
       ctx.moveTo(x, 0);
       ctx.lineTo(x, canvas.height);
     }
     
-    // Horizontal grid lines
     for (let i = 1; i <= 5; i++) {
       const y = (i / 5) * canvas.height * 0.8;
       ctx.moveTo(0, y);
@@ -109,13 +112,11 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     ctx.stroke();
     ctx.setLineDash([]);
     
-    // Draw curve
     if (points.length > 1) {
       ctx.beginPath();
       ctx.strokeStyle = '#3b82f6';
       ctx.lineWidth = 2;
       
-      // Convert data points to canvas coordinates
       const scaledPoints = points.map(([x, y]) => [
         (x - -5) / 10 * canvas.width, 
         y * (canvas.height * 0.8)
@@ -128,7 +129,6 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
       
       ctx.stroke();
       
-      // Fill area under curve
       ctx.lineTo(scaledPoints[scaledPoints.length - 1][0], 0);
       ctx.lineTo(scaledPoints[0][0], 0);
       ctx.closePath();
@@ -138,7 +138,6 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     
     ctx.restore();
     
-    // Add x-axis labels
     ctx.fillStyle = '#666';
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
@@ -150,7 +149,6 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     
   }, [points]);
 
-  // Draw the histogram of samples
   useEffect(() => {
     if (samples.length === 0) return;
     
@@ -160,20 +158,16 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Calculate histogram bins
     const min = Math.min(...samples);
     const max = Math.max(...samples);
     const numBins = 30;
     const binWidth = (max - min) / numBins;
     
-    // Count samples in each bin
     const bins = Array(numBins).fill(0);
     samples.forEach(sample => {
       if (sample === max) {
-        // Special case for max value
         bins[numBins - 1]++;
       } else {
         const binIndex = Math.floor((sample - min) / binWidth);
@@ -183,24 +177,12 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
       }
     });
     
-    // Find max bin count for scaling
     const maxBinCount = Math.max(...bins);
     
-    // Draw histogram
     ctx.save();
     ctx.translate(0, canvas.height);
     ctx.scale(1, -1);
     
-    // Draw axes
-    ctx.beginPath();
-    ctx.strokeStyle = '#aaa';
-    ctx.moveTo(0, 0);
-    ctx.lineTo(canvas.width, 0);
-    ctx.moveTo(0, 0);
-    ctx.lineTo(0, canvas.height);
-    ctx.stroke();
-    
-    // Draw bins
     const barWidth = canvas.width / numBins;
     
     for (let i = 0; i < numBins; i++) {
@@ -214,20 +196,17 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
       ctx.strokeRect(x, 0, barWidth - 1, barHeight);
     }
     
-    // Draw the theoretical PDF from the manual distribution
     if (points.length > 1) {
       ctx.beginPath();
       ctx.strokeStyle = 'rgba(220, 38, 38, 0.8)';
       ctx.lineWidth = 2;
       
-      // Get 100 points from the PDF
       const pdfPoints = Array.from({ length: 100 }, (_, i) => {
         const x = min + (i / 99) * (max - min);
         const y = distribution.pdf(x);
         return [x, y];
       });
       
-      // Scale to fit canvas
       const maxPdf = Math.max(...pdfPoints.map(p => p[1]));
       if (maxPdf > 0) {
         const scaledPoints = pdfPoints.map(([x, y]) => [
@@ -246,7 +225,6 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     
     ctx.restore();
     
-    // Add x-axis labels
     ctx.fillStyle = '#666';
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
@@ -259,7 +237,6 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     
   }, [samples, points, distribution]);
 
-  // Interpolate between two points
   const interpolatePoints = (
     start: [number, number], 
     end: [number, number], 
@@ -277,7 +254,6 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     return interpolated;
   };
 
-  // Handle mouse events for drawing
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDrawing(true);
     
@@ -288,21 +264,15 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     const x = (e.clientX - rect.left) / canvas.width;
     const y = 1 - (e.clientY - rect.top) / canvas.height;
     
-    // Convert to distribution space
-    const xDist = -5 + x * 10; // Map [0,1] to [-5,5]
-    const yDist = Math.max(0, y); // Ensure y is non-negative
+    const xDist = -5 + x * 10;
+    const yDist = Math.max(0, y);
     
-    // Reset the distribution
     distribution.clearPoints();
-    
-    // Add first point and update
     distribution.addPoint(xDist, yDist);
     setPoints(distribution.getPoints());
     
-    // Save this point for interpolation
     lastPointRef.current = [xDist, yDist];
     
-    // Clear samples when starting a new drawing
     setSamples([]);
   };
   
@@ -316,24 +286,20 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     const x = (e.clientX - rect.left) / canvas.width;
     const y = 1 - (e.clientY - rect.top) / canvas.height;
     
-    // Convert to distribution space
-    const xDist = -5 + x * 10; // Map [0,1] to [-5,5]
-    const yDist = Math.max(0, y); // Ensure y is non-negative
+    const xDist = -5 + x * 10;
+    const yDist = Math.max(0, y);
     
     const lastPoint = lastPointRef.current;
     
-    // If points are too close, skip
     const distance = Math.sqrt(Math.pow(xDist - lastPoint[0], 2) + Math.pow(yDist - lastPoint[1], 2));
     if (distance < 0.03) return;
     
-    // Interpolate between last point and current point
     const interpolated = interpolatePoints(
       lastPoint, 
       [xDist, yDist],
-      Math.ceil(distance * smoothingFactor) // More points for smoother curves
+      Math.ceil(distance * smoothingFactor)
     );
     
-    // Add interpolated points
     for (let i = 1; i < interpolated.length; i++) {
       distribution.addPoint(interpolated[i][0], interpolated[i][1]);
     }
@@ -348,7 +314,6 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     setIsDrawing(false);
     lastPointRef.current = null;
     
-    // Normalize the distribution
     distribution.normalize();
     setPoints(distribution.getPoints());
     
@@ -411,7 +376,6 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     }
   };
   
-  // Calculate statistics for the samples
   const getSampleStats = () => {
     if (samples.length === 0) return null;
     
@@ -439,12 +403,10 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     }
   };
   
-  // Get statistics from theoretical distribution
   const getTheoreticalStats = () => {
     if (points.length < 2) return null;
     
     try {
-      // For theoretical stats, we'll generate a large sample and calculate from that
       const theoreticalSamples = distribution.generateSamples(5000);
       const mean = calculateMean(theoreticalSamples);
       const variance = calculateVariance(theoreticalSamples);
@@ -488,7 +450,7 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
-            className="cursor-crosshair"
+            className="cursor-crosshair touch-none"
           />
         </div>
         <p className="text-sm text-muted-foreground">
