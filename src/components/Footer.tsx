@@ -12,55 +12,63 @@ declare global {
 
 const Footer = () => {
   useEffect(() => {
-    // Check if document.body exists before manipulating it
-    if (typeof document === 'undefined' || !document.body) {
-      return;
-    }
+    // Add a delay to ensure document.body is available
+    const timer = setTimeout(() => {
+      // Double check if document.body exists before manipulating it
+      if (typeof document === 'undefined' || !document.body) {
+        console.warn('Document body not available for script injection');
+        return;
+      }
 
-    // Add StatCounter script
-    const scScript = document.createElement('script');
-    scScript.type = 'text/javascript';
-    scScript.innerHTML = `
-      var sc_project = 5714596;
-      var sc_invisible = 1;
-      var sc_security = "038e9ac4";
-      var scJsHost = "https://secure.";
-      document.write("<sc"+"ript type='text/javascript' src='" +
-      scJsHost+"statcounter.com/counter/counter.js'></"+"script>");
-    `;
-    document.body.appendChild(scScript);
+      try {
+        // Add StatCounter script
+        const scScript = document.createElement('script');
+        scScript.type = 'text/javascript';
+        scScript.innerHTML = `
+          var sc_project = 5714596;
+          var sc_invisible = 1;
+          var sc_security = "038e9ac4";
+          var scJsHost = "https://secure.";
+          document.write("<sc"+"ript type='text/javascript' src='" +
+          scJsHost+"statcounter.com/counter/counter.js'></"+"script>");
+        `;
+        document.body.appendChild(scScript);
 
-    // Add Google Analytics scripts
-    const gaScript = document.createElement('script');
-    gaScript.src = 'https://www.google-analytics.com/urchin.js';
-    gaScript.async = true;
-    document.body.appendChild(gaScript);
+        // Add Google Analytics scripts
+        const gaScript = document.createElement('script');
+        gaScript.src = 'https://www.google-analytics.com/urchin.js';
+        gaScript.async = true;
+        document.body.appendChild(gaScript);
 
-    const gtagScript = document.createElement('script');
-    gtagScript.src = 'https://www.googletagmanager.com/gtag/js?id=UA-69710121-1';
-    gtagScript.async = true;
-    document.body.appendChild(gtagScript);
+        const gtagScript = document.createElement('script');
+        gtagScript.src = 'https://www.googletagmanager.com/gtag/js?id=UA-69710121-1';
+        gtagScript.async = true;
+        document.body.appendChild(gtagScript);
 
-    // Initialize GA
-    window._uacct = "UA-676559-1";
-    window.dataLayer = window.dataLayer || [];
-    function gtag(...args: any[]) {
-      window.dataLayer.push(args);
-    }
-    gtag('js', new Date());
-    gtag('config', 'UA-69710121-1');
+        // Initialize GA
+        window._uacct = "UA-676559-1";
+        window.dataLayer = window.dataLayer || [];
+        function gtag(...args: any[]) {
+          window.dataLayer.push(args);
+        }
+        gtag('js', new Date());
+        gtag('config', 'UA-69710121-1');
+      } catch (error) {
+        console.warn('Error adding analytics scripts:', error);
+      }
+    }, 100);
 
     return () => {
+      clearTimeout(timer);
       // Clean up only if elements exist
       try {
-        if (document.body.contains(scScript)) {
-          document.body.removeChild(scScript);
-        }
-        if (document.body.contains(gaScript)) {
-          document.body.removeChild(gaScript);
-        }
-        if (document.body.contains(gtagScript)) {
-          document.body.removeChild(gtagScript);
+        if (typeof document !== 'undefined' && document.body) {
+          const scripts = document.body.querySelectorAll('script[src*="statcounter"], script[src*="google-analytics"], script[src*="googletagmanager"]');
+          scripts.forEach(script => {
+            if (document.body.contains(script)) {
+              document.body.removeChild(script);
+            }
+          });
         }
       } catch (error) {
         console.warn('Error cleaning up scripts:', error);
