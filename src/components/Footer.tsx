@@ -12,81 +12,55 @@ declare global {
 
 const Footer = () => {
   useEffect(() => {
-    // Only run in browser environment
-    if (typeof window === 'undefined') {
+    // Check if document.body exists before manipulating it
+    if (typeof document === 'undefined' || !document.body) {
       return;
     }
 
-    // Wait for DOM to be fully loaded
-    const initializeScripts = () => {
-      // Triple check if document.body exists
-      if (!document || !document.body) {
-        console.warn('Document body not available for script injection');
-        return;
-      }
+    // Add StatCounter script
+    const scScript = document.createElement('script');
+    scScript.type = 'text/javascript';
+    scScript.innerHTML = `
+      var sc_project = 5714596;
+      var sc_invisible = 1;
+      var sc_security = "038e9ac4";
+      var scJsHost = "https://secure.";
+      document.write("<sc"+"ript type='text/javascript' src='" +
+      scJsHost+"statcounter.com/counter/counter.js'></"+"script>");
+    `;
+    document.body.appendChild(scScript);
 
-      try {
-        // Initialize GA dataLayer first
-        window.dataLayer = window.dataLayer || [];
-        function gtag(...args: any[]) {
-          window.dataLayer.push(args);
-        }
-        window.gtag = gtag;
+    // Add Google Analytics scripts
+    const gaScript = document.createElement('script');
+    gaScript.src = 'https://www.google-analytics.com/urchin.js';
+    gaScript.async = true;
+    document.body.appendChild(gaScript);
 
-        // Add StatCounter script
-        const scScript = document.createElement('script');
-        scScript.type = 'text/javascript';
-        scScript.innerHTML = `
-          var sc_project = 5714596;
-          var sc_invisible = 1;
-          var sc_security = "038e9ac4";
-          var scJsHost = "https://secure.";
-          document.write("<sc"+"ript type='text/javascript' src='" +
-          scJsHost+"statcounter.com/counter/counter.js'></"+"script>");
-        `;
-        document.body.appendChild(scScript);
+    const gtagScript = document.createElement('script');
+    gtagScript.src = 'https://www.googletagmanager.com/gtag/js?id=UA-69710121-1';
+    gtagScript.async = true;
+    document.body.appendChild(gtagScript);
 
-        // Add Google Analytics scripts
-        const gaScript = document.createElement('script');
-        gaScript.src = 'https://www.google-analytics.com/urchin.js';
-        gaScript.async = true;
-        document.body.appendChild(gaScript);
-
-        const gtagScript = document.createElement('script');
-        gtagScript.src = 'https://www.googletagmanager.com/gtag/js?id=UA-69710121-1';
-        gtagScript.async = true;
-        document.body.appendChild(gtagScript);
-
-        // Initialize GA
-        window._uacct = "UA-676559-1";
-        gtag('js', new Date());
-        gtag('config', 'UA-69710121-1');
-      } catch (error) {
-        console.warn('Error adding analytics scripts:', error);
-      }
-    };
-
-    // Check if document is already ready
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initializeScripts);
-    } else {
-      // DOM is already ready
-      setTimeout(initializeScripts, 0);
+    // Initialize GA
+    window._uacct = "UA-676559-1";
+    window.dataLayer = window.dataLayer || [];
+    function gtag(...args: any[]) {
+      window.dataLayer.push(args);
     }
+    gtag('js', new Date());
+    gtag('config', 'UA-69710121-1');
 
     return () => {
-      // Clean up event listener
-      document.removeEventListener('DOMContentLoaded', initializeScripts);
-      
-      // Clean up scripts
+      // Clean up only if elements exist
       try {
-        if (typeof document !== 'undefined' && document.body) {
-          const scripts = document.body.querySelectorAll('script[src*="statcounter"], script[src*="google-analytics"], script[src*="googletagmanager"]');
-          scripts.forEach(script => {
-            if (document.body.contains(script)) {
-              document.body.removeChild(script);
-            }
-          });
+        if (document.body.contains(scScript)) {
+          document.body.removeChild(scScript);
+        }
+        if (document.body.contains(gaScript)) {
+          document.body.removeChild(gaScript);
+        }
+        if (document.body.contains(gtagScript)) {
+          document.body.removeChild(gtagScript);
         }
       } catch (error) {
         console.warn('Error cleaning up scripts:', error);
