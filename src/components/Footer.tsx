@@ -12,15 +12,27 @@ declare global {
 
 const Footer = () => {
   useEffect(() => {
-    // Add a delay to ensure document.body is available
-    const timer = setTimeout(() => {
-      // Double check if document.body exists before manipulating it
-      if (typeof document === 'undefined' || !document.body) {
+    // Only run in browser environment
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    // Wait for DOM to be fully loaded
+    const initializeScripts = () => {
+      // Triple check if document.body exists
+      if (!document || !document.body) {
         console.warn('Document body not available for script injection');
         return;
       }
 
       try {
+        // Initialize GA dataLayer first
+        window.dataLayer = window.dataLayer || [];
+        function gtag(...args: any[]) {
+          window.dataLayer.push(args);
+        }
+        window.gtag = gtag;
+
         // Add StatCounter script
         const scScript = document.createElement('script');
         scScript.type = 'text/javascript';
@@ -47,20 +59,26 @@ const Footer = () => {
 
         // Initialize GA
         window._uacct = "UA-676559-1";
-        window.dataLayer = window.dataLayer || [];
-        function gtag(...args: any[]) {
-          window.dataLayer.push(args);
-        }
         gtag('js', new Date());
         gtag('config', 'UA-69710121-1');
       } catch (error) {
         console.warn('Error adding analytics scripts:', error);
       }
-    }, 100);
+    };
+
+    // Check if document is already ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initializeScripts);
+    } else {
+      // DOM is already ready
+      setTimeout(initializeScripts, 0);
+    }
 
     return () => {
-      clearTimeout(timer);
-      // Clean up only if elements exist
+      // Clean up event listener
+      document.removeEventListener('DOMContentLoaded', initializeScripts);
+      
+      // Clean up scripts
       try {
         if (typeof document !== 'undefined' && document.body) {
           const scripts = document.body.querySelectorAll('script[src*="statcounter"], script[src*="google-analytics"], script[src*="googletagmanager"]');
