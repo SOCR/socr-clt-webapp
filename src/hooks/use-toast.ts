@@ -183,7 +183,6 @@ function useToast() {
   };
 }
 
-// Create a simple provider component for compatibility
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
