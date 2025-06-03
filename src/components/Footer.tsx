@@ -12,6 +12,11 @@ declare global {
 
 const Footer = () => {
   useEffect(() => {
+    // Check if document.body exists before manipulating it
+    if (typeof document === 'undefined' || !document.body) {
+      return;
+    }
+
     // Add StatCounter script
     const scScript = document.createElement('script');
     scScript.type = 'text/javascript';
@@ -46,9 +51,20 @@ const Footer = () => {
     gtag('config', 'UA-69710121-1');
 
     return () => {
-      document.body.removeChild(scScript);
-      document.body.removeChild(gaScript);
-      document.body.removeChild(gtagScript);
+      // Clean up only if elements exist
+      try {
+        if (document.body.contains(scScript)) {
+          document.body.removeChild(scScript);
+        }
+        if (document.body.contains(gaScript)) {
+          document.body.removeChild(gaScript);
+        }
+        if (document.body.contains(gtagScript)) {
+          document.body.removeChild(gtagScript);
+        }
+      } catch (error) {
+        console.warn('Error cleaning up scripts:', error);
+      }
     };
   }, []);
 

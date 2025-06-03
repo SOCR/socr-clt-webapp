@@ -5,14 +5,9 @@ import { Input } from "@/components/ui/input";
 import { ManualDistribution } from '@/lib/distributions/manual';
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/components/ui/use-toast";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
+import DistributionCanvas from './DistributionCanvas';
+import SampleHistogram from './SampleHistogram';
+import StatisticsTable from './StatisticsTable';
 import { 
   calculateMean, 
   calculateVariance, 
@@ -40,202 +35,21 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
   const [samples, setSamples] = useState<number[]>([]);
   const [sampleCount, setSampleCount] = useState(500);
   
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const histogramCanvasRef = useRef<HTMLCanvasElement>(null);
   const lastPointRef = useRef<[number, number] | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     const handleResize = () => {
-      if (canvasRef.current) {
-        const parent = canvasRef.current.parentElement;
-        if (parent) {
-          setCanvasWidth(parent.clientWidth);
-        }
-      }
+      setCanvasWidth(600);
     };
 
     handleResize();
-    
-    const resizeObserver = new ResizeObserver(handleResize);
-    if (canvasRef.current?.parentElement) {
-      resizeObserver.observe(canvasRef.current.parentElement);
-    }
-    
     window.addEventListener('resize', handleResize);
     
     return () => {
-      if (canvasRef.current?.parentElement) {
-        resizeObserver.unobserve(canvasRef.current.parentElement);
-      }
       window.removeEventListener('resize', handleResize);
     };
   }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    ctx.save();
-    ctx.translate(0, canvas.height);
-    ctx.scale(1, -1);
-    
-    ctx.beginPath();
-    ctx.strokeStyle = '#aaa';
-    ctx.moveTo(0, 0);
-    ctx.lineTo(canvas.width, 0);
-    ctx.moveTo(0, 0);
-    ctx.lineTo(0, canvas.height);
-    ctx.stroke();
-    
-    ctx.beginPath();
-    ctx.strokeStyle = '#eee';
-    ctx.setLineDash([2, 2]);
-    
-    for (let i = 1; i <= 10; i++) {
-      const x = (i / 10) * canvas.width;
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvas.height);
-    }
-    
-    for (let i = 1; i <= 5; i++) {
-      const y = (i / 5) * canvas.height * 0.8;
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
-    }
-    
-    ctx.stroke();
-    ctx.setLineDash([]);
-    
-    if (points.length > 1) {
-      ctx.beginPath();
-      ctx.strokeStyle = '#3b82f6';
-      ctx.lineWidth = 2;
-      
-      const scaledPoints = points.map(([x, y]) => [
-        (x - -5) / 10 * canvas.width, 
-        y * (canvas.height * 0.8)
-      ]);
-      
-      ctx.moveTo(scaledPoints[0][0], scaledPoints[0][1]);
-      for (let i = 1; i < scaledPoints.length; i++) {
-        ctx.lineTo(scaledPoints[i][0], scaledPoints[i][1]);
-      }
-      
-      ctx.stroke();
-      
-      ctx.lineTo(scaledPoints[scaledPoints.length - 1][0], 0);
-      ctx.lineTo(scaledPoints[0][0], 0);
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
-      ctx.fill();
-    }
-    
-    ctx.restore();
-    
-    ctx.fillStyle = '#666';
-    ctx.font = '10px sans-serif';
-    ctx.textAlign = 'center';
-    
-    for (let i = -5; i <= 5; i += 1) {
-      const x = ((i + 5) / 10) * canvas.width;
-      ctx.fillText(i.toString(), x, canvas.height - 2);
-    }
-    
-  }, [points]);
-
-  useEffect(() => {
-    if (samples.length === 0) return;
-    
-    const canvas = histogramCanvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    const min = Math.min(...samples);
-    const max = Math.max(...samples);
-    const numBins = 30;
-    const binWidth = (max - min) / numBins;
-    
-    const bins = Array(numBins).fill(0);
-    samples.forEach(sample => {
-      if (sample === max) {
-        bins[numBins - 1]++;
-      } else {
-        const binIndex = Math.floor((sample - min) / binWidth);
-        if (binIndex >= 0 && binIndex < numBins) {
-          bins[binIndex]++;
-        }
-      }
-    });
-    
-    const maxBinCount = Math.max(...bins);
-    
-    ctx.save();
-    ctx.translate(0, canvas.height);
-    ctx.scale(1, -1);
-    
-    const barWidth = canvas.width / numBins;
-    
-    for (let i = 0; i < numBins; i++) {
-      const barHeight = (maxBinCount > 0) ? (bins[i] / maxBinCount * canvas.height * 0.8) : 0;
-      const x = i * barWidth;
-      
-      ctx.fillStyle = 'rgba(59, 130, 246, 0.6)';
-      ctx.fillRect(x, 0, barWidth - 1, barHeight);
-      
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
-      ctx.strokeRect(x, 0, barWidth - 1, barHeight);
-    }
-    
-    if (points.length > 1) {
-      ctx.beginPath();
-      ctx.strokeStyle = 'rgba(220, 38, 38, 0.8)';
-      ctx.lineWidth = 2;
-      
-      const pdfPoints = Array.from({ length: 100 }, (_, i) => {
-        const x = min + (i / 99) * (max - min);
-        const y = distribution.pdf(x);
-        return [x, y];
-      });
-      
-      const maxPdf = Math.max(...pdfPoints.map(p => p[1]));
-      if (maxPdf > 0) {
-        const scaledPoints = pdfPoints.map(([x, y]) => [
-          (x - min) / (max - min) * canvas.width,
-          y / maxPdf * canvas.height * 0.8
-        ]);
-        
-        ctx.moveTo(scaledPoints[0][0], scaledPoints[0][1]);
-        for (let i = 1; i < scaledPoints.length; i++) {
-          ctx.lineTo(scaledPoints[i][0], scaledPoints[i][1]);
-        }
-        
-        ctx.stroke();
-      }
-    }
-    
-    ctx.restore();
-    
-    ctx.fillStyle = '#666';
-    ctx.font = '10px sans-serif';
-    ctx.textAlign = 'center';
-    
-    for (let i = 0; i <= 5; i++) {
-      const value = min + (i / 5) * (max - min);
-      const x = (i / 5) * canvas.width;
-      ctx.fillText(value.toFixed(1), x, canvas.height - 2);
-    }
-    
-  }, [samples, points, distribution]);
 
   const interpolatePoints = (
     start: [number, number], 
@@ -257,9 +71,7 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDrawing(true);
     
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
+    const canvas = e.currentTarget;
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) / canvas.width;
     const y = 1 - (e.clientY - rect.top) / canvas.height;
@@ -272,16 +84,13 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
     setPoints(distribution.getPoints());
     
     lastPointRef.current = [xDist, yDist];
-    
     setSamples([]);
   };
   
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !lastPointRef.current) return;
     
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
+    const canvas = e.currentTarget;
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) / canvas.width;
     const y = 1 - (e.clientY - rect.top) / canvas.height;
@@ -388,15 +197,7 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
       const ksStatistic = calculateKSStatistic(samples);
       const klDivergence = calculateKLDivergence(samples);
       
-      return {
-        mean,
-        variance,
-        sd,
-        skewness,
-        kurtosis,
-        ksStatistic,
-        klDivergence
-      };
+      return { mean, variance, sd, skewness, kurtosis, ksStatistic, klDivergence };
     } catch (error) {
       console.error("Error calculating sample statistics:", error);
       return null;
@@ -416,15 +217,7 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
       const ksStatistic = calculateKSStatistic(theoreticalSamples);
       const klDivergence = calculateKLDivergence(theoreticalSamples);
       
-      return {
-        mean,
-        variance,
-        sd,
-        skewness,
-        kurtosis,
-        ksStatistic,
-        klDivergence
-      };
+      return { mean, variance, sd, skewness, kurtosis, ksStatistic, klDivergence };
     } catch (error) {
       console.error("Error calculating theoretical statistics:", error);
       return null;
@@ -436,27 +229,14 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <Label>Draw Your Distribution</Label>
-        <div 
-          className="border border-gray-300 rounded-md p-2"
-          style={{ width: '100%', height: `${canvasHeight}px` }}
-        >
-          <canvas
-            ref={canvasRef}
-            width={canvasWidth}
-            height={canvasHeight}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            className="cursor-crosshair touch-none"
-          />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Click and drag to draw your probability density function. The area under the curve will be automatically normalized.
-        </p>
-      </div>
+      <DistributionCanvas
+        points={points}
+        width={canvasWidth}
+        height={canvasHeight}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+      />
       
       <div className="flex justify-between space-x-4">
         <Button onClick={clearCanvas} variant="outline" size="sm">Clear Canvas</Button>
@@ -476,22 +256,13 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
       </div>
       
       {samples.length > 0 && (
-        <div className="space-y-2">
-          <Label>Sample Histogram</Label>
-          <div 
-            className="border border-gray-300 rounded-md p-2"
-            style={{ width: '100%', height: `${canvasHeight}px` }}
-          >
-            <canvas
-              ref={histogramCanvasRef}
-              width={canvasWidth}
-              height={canvasHeight}
-            />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Blue bars: Histogram of samples. Red line: Theoretical PDF from your drawing.
-          </p>
-        </div>
+        <SampleHistogram
+          samples={samples}
+          points={points}
+          distribution={distribution}
+          width={canvasWidth}
+          height={canvasHeight}
+        />
       )}
       
       <div className="space-y-2">
@@ -509,90 +280,10 @@ const ManualDistributionDrawer: React.FC<ManualDistributionDrawerProps> = ({
         </p>
       </div>
       
-      {sampleStats && (
-        <div className="space-y-2">
-          <Label>Statistical Analysis</Label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h4 className="text-sm font-medium mb-2">Sample Statistics</h4>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Statistic</TableHead>
-                    <TableHead>Value</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell>Mean</TableCell>
-                    <TableCell>{sampleStats.mean.toFixed(4)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Standard Deviation</TableCell>
-                    <TableCell>{sampleStats.sd.toFixed(4)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Skewness</TableCell>
-                    <TableCell>{sampleStats.skewness.toFixed(4)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Kurtosis</TableCell>
-                    <TableCell>{sampleStats.kurtosis.toFixed(4)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Kolmogorov-Smirnov</TableCell>
-                    <TableCell>{sampleStats.ksStatistic.toFixed(4)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>KL Divergence</TableCell>
-                    <TableCell>{sampleStats.klDivergence.toFixed(4)}</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-            
-            {theoreticalStats && (
-              <div>
-                <h4 className="text-sm font-medium mb-2">Theoretical Statistics</h4>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Statistic</TableHead>
-                      <TableHead>Value</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>Mean</TableCell>
-                      <TableCell>{theoreticalStats.mean.toFixed(4)}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Standard Deviation</TableCell>
-                      <TableCell>{theoreticalStats.sd.toFixed(4)}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Skewness</TableCell>
-                      <TableCell>{theoreticalStats.skewness.toFixed(4)}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Kurtosis</TableCell>
-                      <TableCell>{theoreticalStats.kurtosis.toFixed(4)}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Kolmogorov-Smirnov</TableCell>
-                      <TableCell>{theoreticalStats.ksStatistic.toFixed(4)}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>KL Divergence</TableCell>
-                      <TableCell>{theoreticalStats.klDivergence.toFixed(4)}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <StatisticsTable 
+        sampleStats={sampleStats}
+        theoreticalStats={theoreticalStats}
+      />
     </div>
   );
 };
