@@ -6,6 +6,7 @@
 
 This [SOCR webapp](https://socr.umich.edu/HTML5/) shows a very general demonstration of the Central Limit Theorem (CLT). There is a [supplementary SOCR activity (learning module)](https://wiki.socr.umich.edu/index.php/SOCR_EduMaterials_Activities_GeneralCentralLimitTheorem) is based on an earlier version of the SOCR Sampling Distribution CLT Experiment. This experiment builds upon a RVLS CLT applet by extending the applet functionality and providing the capability of sampling from any SOCR Distribution. 
 
+<!--
 ## How can I edit this code?
 
 There are several ways of editing this web-application.
@@ -51,7 +52,8 @@ npm run dev
 - Select the "Codespaces" tab.
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
-
+-->
+  
 ## What technologies are used for this project?
 
 This project is built with .
@@ -62,6 +64,7 @@ This project is built with .
 - shadcn-ui
 - Tailwind CSS
 
+<!--
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/ce3b1264-08b8-43b0-990d-5f763b7177f1) and click on Share -> Publish.
@@ -69,6 +72,7 @@ Simply open [Lovable](https://lovable.dev/projects/ce3b1264-08b8-43b0-990d-5f763
 ## I want to use a custom domain - is that possible?
 
 We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+-->
 
 # References
  - [SOCR CLT Paper](https://doi.org/10.1080/10691898.2008.11889560)
